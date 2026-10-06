@@ -1,0 +1,199 @@
+# WeChat to Markdown 官网
+
+本工作区维护 `wx2md.com`，下文保留的 `v0.3.0`、源码构建与权限说明只描述 Community 开源核心 MVP，不代表官网分发的商店产品。公开仓库仅包含公众号单篇 Markdown、图片 ZIP 和快捷保存；商店产品在一个安装包内提供免费与会员权益，另含普通文章型网页、本地文章库和合集等能力。官网离线 ZIP 是商店产品的另一分发渠道。当前能力和套餐见官网 FAQ 与购买页，离线版本以 `site/release.json` 为准。
+
+官网 https://wx2md.com ｜ [Chrome 商店一键安装](https://chromewebstore.google.com/detail/wechat-to-markdown/kbijkembfnijlgpkeofanhpoaefkddim) ｜ [源码](https://github.com/wangshan9870/wechat-to-markdown)
+
+把读过的公众号文章，变成真正属于你的本地 Markdown 知识资产。
+
+- 本地不上传
+- MD / HTML / PDF / 图片
+- 合集分卷
+- Obsidian / 思源 / Typora / VS Code
+
+WeChat to Markdown (wx2md) is a local-first Chrome extension that saves WeChat Official Account articles as Markdown on your computer. Parsing and export run in the browser; article bodies are not uploaded to our servers. Official site: https://wx2md.com
+
+将你有权访问的微信公众号文章保存为 Markdown，方便个人阅读、研究和知识整理。
+
+- [产品首页](https://wx2md.com/)
+- [使用支持](https://wx2md.com/support/)
+- [隐私政策](https://wx2md.com/privacy/)
+
+WeChat to Markdown 是一个本地优先的 Chrome 扩展：不需要账号、后端或数据库，文章解析和 Markdown 生成均在你的浏览器中完成。
+
+> [!IMPORTANT]
+> 本项目是一款通用的格式转换工具，不提供文章内容，也不代表用户取得了文章的复制、传播、改编或商业使用授权。请仅处理你有权访问和使用的内容。
+
+## 功能
+
+- 识别当前微信公众号文章页
+- 提取标题、公众号、作者、发布时间和正文
+- 清理脚本、广告节点和排版属性
+- 保留链接、图片、列表、引用、表格等 Markdown 语义
+- 生成包含来源链接的 YAML Front Matter
+- 使用兼容 Windows 和 macOS 的文件名下载 `.md`
+- 可选择下载文章图片，并导出包含 Markdown 与 `images/` 的 ZIP
+- 在公众号文章右下角提供快捷保存入口
+- 支持 `Alt+Shift+W` 快捷键直接保存当前文章
+- 全程本地处理，不上传文章内容
+
+“下载文章图片”默认关闭：关闭时导出 `.md` 并保留网络图片；开启时导出 `.zip`，Markdown 中的图片地址会改为 `./images/` 下的本地文件。该偏好会保存在浏览器本地，并同时用于页面右下角的快捷保存按钮。
+
+如果个别图片下载失败，导出的 Markdown 会为这些图片保留原网络地址，并在完成时显示失败数量。当前版本只处理用户主动打开并点击保存的单篇文章，不提供批量抓取、自动遍历、登录绕过、付费内容解锁或访问控制规避能力。
+
+## 快捷键
+
+在微信公众号文章页按 `Alt+Shift+W`，可以直接触发与右下角“存”按钮相同的保存流程。快捷键会沿用 Popup 中的“下载文章图片”偏好。
+
+如需修改快捷键，请打开 `chrome://extensions/shortcuts`。如果扩展刚更新但当前文章页尚未刷新，快捷保存会通过扩展图标提示刷新页面后重试。
+
+当前版本：`v0.3.0`。
+
+## 安装
+
+### 从 Chrome Web Store 安装（推荐）
+
+本扩展已上架 Chrome Web Store，打开商店页面即可一键安装，无需开发者模式：
+
+[![Install WeChat to Markdown from Chrome Web Store](https://storage.googleapis.com/web-dev-uploads/image/WlD8wC6g8gYhMCkbSEvY4Usoq1/HRs9MPufa1J1h5glNhut.png)](https://chromewebstore.google.com/detail/wechat-to-markdown/kbijkembfnijlgpkeofanhpoaefkddim)
+
+也可以直接在 Chrome Web Store 搜索 **WeChat to Markdown**。
+
+### 从源码构建
+
+需要 Node.js 20 或更高版本。
+
+```bash
+npm install
+npm test
+npm run build
+```
+
+然后：
+
+1. 打开 `chrome://extensions`
+2. 开启“开发者模式”
+3. 点击“加载已解压的扩展程序”
+4. 选择本项目生成的 `dist` 目录
+
+打开一篇 `mp.weixin.qq.com` 文章后，可以点击扩展图标选择导出方式，也可以使用页面右下角的“存”按钮快速保存。
+
+## 部署官网
+
+官网由 Cloudflare Pages 项目 `wx2md` 托管。首次在一台电脑上部署时，先登录 Cloudflare：
+
+```bash
+npx wrangler@4.80.0 login
+```
+
+以后在任意分支运行一条命令即可完成站点检查、测试、构建和生产发布，但 Git 工作区必须没有未提交改动：
+
+```bash
+npm run deploy:site
+```
+
+只验证流程、不上传文件：
+
+```bash
+npm run deploy:site -- --dry-run
+```
+
+脚本固定把 `site/` 发布到 Cloudflare Pages 的 `main` 生产分支，并附带当前 Git commit 信息。当前 Git 分支不必叫 `main`；任何检查失败或存在未提交改动时都会在上传前停止。Cloudflare 上传遇到瞬时网络错误、HTTP 429 或 5xx 时会自动重试两次，不会重复运行测试和构建。部署成功后会尝试向 IndexNow 提交 sitemap 中的正式 URL；失败不会回滚站点，可稍后运行：
+
+```bash
+npm run submit:indexnow
+```
+
+IndexNow 密钥文件位于 `site/<32 位十六进制>.txt`，部署后必须能通过 `https://wx2md.com/<key>.txt` 访问。轮换时：生成新密钥、替换旧文件、更新 `site/_headers` 中的密钥路径，再部署。Bing Webmaster Tools 绑定域名与提交 sitemap 仍需站长账号完成一次，步骤见 `docs/bing-seo.md`。
+
+## 合规使用
+
+使用本项目时，你应自行确认拥有必要的访问和使用权限，包括但不限于：
+
+- 仅保存你能够正常访问且有权使用的文章；
+- 尊重作者署名、作品完整性及其他合法权益；
+- 保留 Markdown 中的原作者、公众号和来源链接；
+- 未经权利人许可，不公开转载、再次分发、出售或用于商业内容库；
+- 不将导出内容用于训练、微调、检索增强生成或其他超出授权范围的 AI 用途；
+- 不利用本项目绕过登录、付费、频率限制、技术保护措施或平台访问控制；
+- 遵守所在地法律、文章权利人的授权条件，以及微信/微信公众号适用的服务协议和平台规则。
+
+《中华人民共和国著作权法》规定了个人学习、研究或欣赏等合理使用情形，同时要求符合相应条件，并不得影响作品的正常使用或不合理地损害著作权人的合法权益。该限制不当然覆盖公开传播、商业使用或批量建立内容库。请参阅[《中华人民共和国著作权法》官方文本](https://www.npc.gov.cn/c2/c30834/202011/t20201119_308796.html)及[腾讯政策与协议入口](https://www.tencent.com/zh-cn/policies/)。
+
+如果你的使用场景涉及组织内部共享、商业产品、批量处理、AI 数据集或跨境传输，请在使用前取得权利人授权并咨询专业法律人士。
+
+## 隐私与安全
+
+- 本项目不设置服务器，不收集账号、Cookie、浏览历史或导出的文章内容。
+- 扩展只在 `https://mp.weixin.qq.com/*` 页面注入内容脚本。
+- `activeTab` 用于读取用户当前主动打开的页面。
+- `downloads` 用于把生成的 Markdown 保存到本地。
+- `storage` 用于在本地保存“是否下载图片”的偏好。
+- `https://mmbiz.qpic.cn/*` 权限仅用于用户选择图片归档后下载文章图片。
+- 导出文件仍可能包含原文中的远程图片链接；打开 Markdown 时，阅读器可能向图片服务器发起请求。
+
+请勿提交包含文章正文、个人信息、Cookie、访问令牌或其他敏感数据的 Issue、日志或测试样本。
+
+## 权利人通知与移除
+
+本仓库不托管微信公众号文章。若你认为本项目仓库中的代码、示例、截图或其他材料侵犯了你的合法权益，请新建 Issue，并提供：
+
+1. 权利人及联系方式；
+2. 涉嫌侵权材料的准确位置；
+3. 权利归属或授权证明；
+4. 希望采取的处理措施。
+
+维护者会在合理核验后处理仓库内可控制的材料。对于用户自行导出的本地文件，请直接联系该文件的持有人；维护者无法访问或删除这些文件。
+
+为保护隐私，请勿在公开 Issue 中提交身份证件、住址、电话号码等不必要的敏感信息。如需非公开材料，可先在 Issue 中请求私下联系渠道。
+
+## 商标声明
+
+“微信”、WeChat、微信公众号及相关名称、商标和标识归其各自权利人所有。本项目为独立的开源项目，与腾讯或微信不存在隶属、合作、授权、认可或背书关系。项目名称仅用于说明兼容对象。
+
+## 免责声明
+
+本项目按“现状”提供，不保证对所有页面持续可用，也不保证导出结果完整、准确或适合特定用途。使用者应自行备份并核对导出内容。
+
+维护者不对用户保存或使用第三方内容作出授权，也不为用户的具体使用行为提供法律意见。法律责任不能仅通过 README 或开源许可证排除；在适用法律允许的最大范围内，本项目作者和贡献者按照 [MIT License](./LICENSE) 提供软件，不承担因使用或无法使用本软件产生的责任。
+
+## 开发结构
+
+```text
+src/content/  微信页面识别、提取与清洗
+src/core/     领域类型、Markdown 和文件名规则
+src/popup/    扩展交互界面
+tests/        单元测试
+```
+
+## 路线图
+
+- 可配置文件命名规则
+- 可选 Front Matter 字段
+- 在合法授权范围内支持更多公开网页
+
+新增能力仍会遵循“用户主动操作、最小权限、本地处理”的边界，不接受绕过访问控制或批量抓取受保护内容的功能。
+
+## 交流与反馈
+
+欢迎添加我的微信，交流插件使用、开发和知识管理。添加时请备注 `WeChat to Markdown`，方便我识别来意。
+
+<img src="./public/wechat.jpg" alt="作者望山的微信二维码" width="280">
+
+功能缺陷和可复现的问题仍建议提交 Issue，便于公开跟踪和帮助其他使用者。权利人通知请按照上文“权利人通知与移除”流程提交，不要通过微信发送身份证件等敏感材料。
+
+## 贡献
+
+欢迎提交 Issue 和 Pull Request。贡献内容必须由贡献者原创，或已获得与本项目许可证兼容的授权；请勿提交从第三方产品复制的代码、素材、文章正文或受限制数据。
+
+安全问题请勿附带真实用户数据或未脱敏文章内容公开披露。
+
+## License
+
+本项目源代码采用 [MIT License](./LICENSE) 开源。
+
+该许可证仅适用于本仓库中由项目作者提供的源代码和原创材料，不适用于通过本工具访问、转换或导出的第三方文章、图片、商标及其他内容；这些内容的权利仍归各自权利人所有。
+
+## 致谢
+
+感谢 [Linux.do](https://linux.do/) 社区的支持与反馈。

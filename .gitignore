@@ -8,3 +8,16 @@ coverage/
 .agents/
 skills-lock.json
 .lark-auth-feedback.png
+
+# Private local runtime and development outputs
+local-archive/data/
+local-archive/archives/
+local-archive/logs/
+local-archive/.staging/
+.env
+.env.*
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.pem
+*.key

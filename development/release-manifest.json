@@ -1,0 +1,46 @@
+{
+  "release": "v1.0.0.p",
+  "date": "2026-10-06",
+  "displayVersion": "1.0.0.p",
+  "npmVersion": "1.0.0-p",
+  "functionalBaseline": "wx2md Local v1.2.1",
+  "repository": "https://github.com/Er1ckPang/wechat-to-markdown",
+  "branch": "dev_p",
+  "tag": "v1.0.0.p",
+  "upstreamBaseCommit": "68b7337ae246e6ab328e16961dcd500ff7297466",
+  "commitIdentity": "Resolve the annotated Git tag; no self-referential commit hash is stored in this file.",
+  "validation": {
+    "upstreamTestsPassed": 45,
+    "localTestsPassed": 6,
+    "upstreamBuild": "passed",
+    "postCleanupRuntime": {
+      "release": "v1.0.0.p",
+      "displayVersion": "1.0.0.p",
+      "packageVersion": "1.0.0-p",
+      "recordsPreserved": 8,
+      "migratedArticleDirectories": 9,
+      "migratedFilesVerified": 238,
+      "servedMarkdowns": 8,
+      "servedLocalImages": 171,
+      "metadataFileChecks": 55,
+      "uiErrors": []
+    }
+  },
+  "privateHistory": {
+    "historicalArchive": "development-history-2026-09-30-to-2026-10-06.zip",
+    "archiveBytes": 391824320,
+    "filesVerified": 1139,
+    "releaseZipCount": 5,
+    "sha256": "827ecb99f242f84f1c6c6040efece0ad7091dd49c93574db12ff29722bf357c6"
+  },
+  "excludedFromGit": [
+    "local-archive/data/",
+    "local-archive/archives/",
+    "local-archive/logs/",
+    "real article content",
+    "credentials",
+    "private historical ZIPs",
+    "node_modules/",
+    "dist/"
+  ]
+}

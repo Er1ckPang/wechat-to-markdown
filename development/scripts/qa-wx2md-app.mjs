@@ -1,0 +1,63 @@
+import { chromium } from '../outputs/wx2md-local/node_modules/playwright/index.mjs';
+import { writeFile, readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import assert from 'node:assert/strict';
+
+const base = 'http://127.0.0.1:17880';
+const articleUrl = 'https://mp.weixin.qq.com/s/NfT-3GDq2sM2LNJlnXslYw';
+const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const context = await browser.newContext({ viewport: { width: 1280, height: 1080 } });
+const page = await context.newPage(); const pageErrors = [];
+page.on('pageerror', error => pageErrors.push(error.message));
+try {
+  await page.goto(base); await page.getByText('本地工具运行中', { exact: true }).waitFor();
+  await page.locator('#links').fill(articleUrl); await page.locator('#save').click();
+  const card = page.locator('.job').first();
+  await card.getByText('保存完成', { exact: true }).waitFor({ timeout: 240000 });
+  const id = await card.getAttribute('data-job-id');
+  const token = (await (await context.request.get(base + '/api/session')).json()).token;
+  const headers = { 'X-Wx2md-Token': token };
+  let status = await (await context.request.get(base + '/api/status', { headers })).json();
+  const job = status.jobs.find(j => j.id === id);
+  assert.equal(job.metadata.markdown_images.length, 16); assert.equal(job.metadata.failed_images.length, 0);
+  assert.equal(job.metadata.offline_check.missingImages, 0); assert.equal(job.metadata.offline_check.remoteImages, 0);
+  assert.equal(job.status, 'completed');
+  await page.locator('#links').fill(articleUrl); await page.locator('#save').click();
+  await page.getByText('这些文章已在保存记录中。', { exact: true }).waitFor();
+  assert.equal(await page.locator('.job').count(), 1);
+  await page.screenshot({ path: fileURLToPath(new URL('./wx2md-app-desktop.png', import.meta.url)), fullPage: true });
+  await page.getByRole('button', { name: '飞书自动保存', exact: true }).click();
+  await page.getByText('先测试本地消息处理', { exact: true }).click();
+  await page.locator('#message-test').fill('帮我保存：' + articleUrl); await page.locator('#simulate').click();
+  await page.getByText(/消息提取成功：1 个链接已处理/).waitFor();
+  status = await (await context.request.get(base + '/api/status', { headers })).json();
+  assert.equal(status.jobs.length, 1);
+  assert.equal(status.feishu.state, 'disabled'); assert.ok(!('appSecret' in status.config.feishu));
+  await page.screenshot({ path: fileURLToPath(new URL('./wx2md-app-feishu.png', import.meta.url)), fullPage: true });
+  const unauth = await context.request.post(base + '/api/jobs', { data: { url: articleUrl } }); assert.equal(unauth.status(), 403);
+  const csrf = await context.request.post(base + '/api/jobs', { headers: { ...headers, Origin: 'https://other.test' }, data: { url: articleUrl } }); assert.equal(csrf.status(), 403);
+  const invalid = await context.request.post(base + '/api/jobs', { headers, data: { url: 'http://127.0.0.1/a' } }); assert.equal(invalid.status(), 400);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: '手动保存', exact: true }).click();
+  await page.screenshot({ path: fileURLToPath(new URL('./wx2md-app-mobile.png', import.meta.url)), fullPage: true });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.goto(base + '/guide.html'); assert.equal(await page.locator('h1').innerText(), '公众号文章，留在自己的电脑里。');
+  const offline = await browser.newContext({ viewport: { width: 430, height: 900 } });
+  const offlinePage = await offline.newPage(); let blockedNetworkRequests = 0;
+  await offlinePage.route('**/*', route => { if (/^https?:/.test(route.request().url())) { blockedNetworkRequests++; return route.abort(); } return route.continue(); });
+  await offlinePage.goto(pathToFileURL(path.join(job.output_dir, 'original.html')).href);
+  await offlinePage.screenshot({ path: fileURLToPath(new URL('./wx2md-article-top.png', import.meta.url)) });
+  const height = await offlinePage.evaluate(() => document.documentElement.scrollHeight);
+  await offlinePage.evaluate(height => scrollTo(0, height / 2), height);
+  await offlinePage.screenshot({ path: fileURLToPath(new URL('./wx2md-article-middle.png', import.meta.url)) });
+  const imageStatus = await offlinePage.evaluate(() => [...document.querySelectorAll('#js_content img')].map(i => ({ embedded: i.src.startsWith('data:'), loaded: i.complete && i.naturalWidth > 0 })));
+  assert.ok(imageStatus.every(i => i.embedded && i.loaded));
+  await offline.close();
+  assert.deepEqual(pageErrors, []);
+  const report = { verified_at: new Date().toISOString(), actual_article: { title: job.title, url: job.url, outputDir: job.output_dir, jobId: id, imageCount: 16, screenshotHeight: height, metadata: job.metadata },
+    checks: { manualUi: true, actualArticle: true, sameUrlDeduplicated: true, simulatedMessageDeduplicated: true, noCredentialsExposed: true, unauthorizedWriteRejected: true, crossSiteWriteRejected: true, nonWechatUrlRejected: true, responsiveUi: true, offlineHtmlImagesLoaded: true, guideOpened: true },
+    feishuRealDelivery: 'not_tested_no_app_credentials', macRuntime: 'not_tested', pageErrors };
+  await writeFile(new URL('./wx2md-verification.json', import.meta.url), JSON.stringify(report, null, 2));
+  console.log(JSON.stringify({ title: job.title, outputDir: job.output_dir, checks: report.checks, screenshotsHeight: height, offlineImageCount: imageStatus.length, blockedNetworkRequests, pageErrors }, null, 2));
+} finally { await browser.close(); }

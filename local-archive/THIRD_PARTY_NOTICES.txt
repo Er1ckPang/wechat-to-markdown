@@ -1,0 +1,44 @@
+wx2md Local 1.0.0.p
+
+This is a local adaptation, not an official release of the wx2md commercial
+browser extension. This project's source is distributed under AGPL-3.0-or-later
+(see LICENSE), and the original MIT notices remain applicable to adapted code.
+All source files needed to build this version are included in this directory.
+
+1. WeChat to Markdown / wx2md Community v0.3.0
+   https://github.com/wangshan9870/wechat-to-markdown
+   Audited commit: 68b7337ae246e6ab328e16961dcd500ff7297466
+   Copyright (c) 2026 望山. MIT License.
+   Adapted extraction, cleaning and Turndown conversion are in src/extract.mjs
+   and src/markdown.mjs. Original license: licenses/wx2md-MIT.txt.
+
+2. SingleFile Core 1.6.19
+   https://github.com/gildas-lormeau/single-file-core
+   AGPL-3.0-or-later. Used through its public API for original-page HTML capture.
+   The browser bundle in vendor/singlefile.js is built with scripts/build.mjs
+   from the unmodified single-file-core npm source. Notices are retained.
+   The dependency's full source and additional notices are in third-party-source/single-file-core; installed dependency copies are in node_modules.
+
+3. Feishu / Lark Node SDK 1.74.0
+   https://github.com/larksuite/node-sdk
+   MIT License. Original notice: licenses/feishu-sdk-MIT.txt.
+
+4. Marked 17.0.5
+   https://github.com/markedjs/marked
+   MIT License. Unmodified ESM build: vendor/marked.mjs.
+   Original license: vendor/MARKED-LICENSE.md.
+   Used for the offline Markdown reading preview. No remote scripts are loaded.
+
+5. pngjs 7.0.0
+   https://github.com/pngjs/pngjs
+   MIT License. Unmodified source is in vendor/pngjs, including LICENSE.
+   Used to decode viewport PNG pixels and losslessly stream the final image.
+
+6. Other dependencies
+   Playwright 1.63.0 (Apache-2.0), Turndown 7.2.0 (MIT),
+   turndown-plugin-gfm 1.0.2 (MIT), esbuild 0.28.2 (MIT).
+   Their original licenses and dependency licenses are included in their
+   respective node_modules packages when dependencies are installed.
+
+Archived articles remain the work of their original authors. The software
+license applies to this tool, not to the content of saved articles.
