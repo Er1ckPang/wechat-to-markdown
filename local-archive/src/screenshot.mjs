@@ -7,6 +7,7 @@ export async function prepareCapture(page, scale, warnings, options = {}) {
   return page.evaluate(async ({ scale, options }) => {
     const content = document.querySelector('[data-wx2md-body], #js_content');
     let hiddenFloating = 0, flattenedSticky = 0, expandedOverflow = 0, fittedTables = 0, fittedVectors = 0, reflowedCode = 0;
+    const frozenAnimatedImages = [];
     for (const element of [...document.querySelectorAll('body *')]) {
       const position = getComputedStyle(element).position;
       if (!['fixed','sticky'].includes(position)) continue;
@@ -14,6 +15,45 @@ export async function prepareCapture(page, scale, warnings, options = {}) {
       else { element.style.setProperty('position', 'static', 'important'); flattenedSticky++; }
     }
     await Promise.all([...content.querySelectorAll('img')].map(i => i.decode().catch(() => {})));
+    // CSS animation suppression does not stop GIF/WebP/APNG playback. Freeze
+    // frame zero at native pixel dimensions in this disposable capture DOM.
+    // The saved HTML and images/ originals are never rewritten.
+    for (const [index, image] of [...content.querySelectorAll('img')].entries()) {
+      const source = image.currentSrc || image.src;
+      const mime = /^data:(image\/(?:gif|webp|png));/i.exec(source)?.[1]?.toLowerCase();
+      if (!mime || !image.naturalWidth) continue;
+      const comma = source.indexOf(',');
+      const binary = source.slice(0,comma).endsWith(';base64') ? atob(source.slice(comma+1)) : decodeURIComponent(source.slice(comma+1));
+      const bytes = Uint8Array.from(binary, ch=>ch.charCodeAt(0));
+      const ascii = (offset, length) => String.fromCharCode(...bytes.subarray(offset, offset + length));
+      let animated = mime === 'image/gif';
+      if (mime === 'image/png' || mime === 'image/webp') {
+        const view = new DataView(bytes.buffer);
+        for (let offset = mime === 'image/png' ? 8 : 12; offset + 8 <= bytes.length;) {
+          const png = mime === 'image/png';
+          const size = view.getUint32(offset + (png ? 0 : 4), !png);
+          const kind = ascii(offset + (png ? 4 : 0), 4);
+          if (kind === 'acTL' || kind === 'ANIM' || kind === 'ANMF') { animated = true; break; }
+          offset += size + (png ? 12 : 8 + (size % 2));
+        }
+      }
+      if (!animated) continue;
+      if (!globalThis.ImageDecoder || !await ImageDecoder.isTypeSupported(mime)) throw new Error('采集浏览器无法固定动图帧，请安装 Chromium 后重新保存。');
+      const decoder = new ImageDecoder({ data: bytes, type: mime, preferAnimation: true });
+      let frame;
+      try {
+        await decoder.tracks.ready;
+        if (!decoder.tracks.selectedTrack?.animated) continue;
+        ({ image: frame } = await decoder.decode({ frameIndex: 0, completeFramesOnly: true }));
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+        canvas.getContext('2d').drawImage(frame, 0, 0, canvas.width, canvas.height);
+        image.removeAttribute('srcset');
+        image.closest('picture')?.querySelectorAll('source').forEach(source => source.removeAttribute('srcset'));
+        image.src = canvas.toDataURL('image/png'); await image.decode();
+        frozenAnimatedImages.push({ index: index + 1, mime, frame: 0, width: canvas.width, height: canvas.height });
+      } finally { frame?.close(); decoder.close(); }
+    }
     await document.fonts.ready;
     if (options.fitToViewport) {
       const style = document.createElement('style');
@@ -93,7 +133,7 @@ export async function prepareCapture(page, scale, warnings, options = {}) {
       const right = Math.min(second.width, Math.ceil(Math.max(...rects.map(r => r.right)) + 20));
       crop = { left, width: right - left };
     }
-    return { ...second, crop, viewportWidth: innerWidth, viewportHeight: innerHeight, hiddenFloating, flattenedSticky, expandedOverflow, fittedTables, fittedVectors, reflowedCode, stabilizationSamples };
+    return { ...second, crop, viewportWidth: innerWidth, viewportHeight: innerHeight, hiddenFloating, flattenedSticky, expandedOverflow, fittedTables, fittedVectors, reflowedCode, stabilizationSamples, frozenAnimatedImages };
   }, { scale, options });
 }
 

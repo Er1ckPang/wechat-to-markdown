@@ -7,9 +7,39 @@
   "baseCommit": "245eb10713701b765a4625b971b3b2d468ec967b",
   "displayVersion": "1.3.0.p",
   "npmVersion": "1.3.0-p",
-  "features": ["invalid-link notices", "WeChat migration following", "100-link durable batches", "configurable bounded concurrency", "wide SVG and code reflow"],
-  "localValidation": {"localTestsPassed": 26, "upstreamTestsPassed": 45, "upstreamBuild": "passed"},
-  "liveValidation": {"attentionArticle": "completed; 14 offline images; both PNG coverage checks passed", "migrationExample": "new link detected and followed; destination requires WeChat verification in current network"},
-  "nativeValidation": {"status": "pending"},
-  "privateRecords": "local-archive/logs/failure-analysis/ and local-archive/data/; excluded from Git and source ZIP"
+  "features": [
+    "invalid-link notices",
+    "WeChat migration following",
+    "100-link durable batches",
+    "configurable bounded concurrency",
+    "wide SVG and code reflow",
+    "animated-image native-pixel first-frame capture",
+    "home summary and active jobs",
+    "10000-record filtered pagination"
+  ],
+  "localValidation": {
+    "localTestsPassed": 30,
+    "upstreamTestsPassed": 45,
+    "upstreamBuild": "passed"
+  },
+  "liveValidation": {
+    "attentionArticle": "completed; 14 offline images; both PNG coverage checks passed",
+    "migrationExample": "new link detected and followed; destination requires WeChat verification in current network",
+    "inferenceArticle": "completed; 28 offline images; 3 original GIFs preserved; mobile1296x64710 and desktop2154x52617 complete with zero overlap difference",
+    "recordsUI": "105 existing records; 390/768/1100px home and record views; invalid filter and page jump passed; no script errors"
+  },
+  "nativeValidation": {
+    "status": "pending"
+  },
+  "privateRecords": "local-archive/logs/failure-analysis/ and local-archive/data/; excluded from Git and source ZIP",
+  "recordQuery": {
+    "maxMatchingResults": 10000,
+    "databaseRetention": "unlimited by query cap",
+    "pageSizes": [
+      20,
+      50,
+      100
+    ],
+    "homeActiveLimit": 12
+  }
 }

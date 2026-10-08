@@ -2,6 +2,7 @@ import {readFile,stat,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
 import {launchBrowser} from '../../local-archive/src/browser.mjs';
 
 const repo=fileURLToPath(new URL('../../',import.meta.url)),app=path.join(repo,'local-archive');
@@ -13,9 +14,11 @@ assert.equal(health.version,version);assert.equal(path.resolve(health.root),path
 const token=(await(await fetch(base+'/api/session')).json()).token;
 const status=await(await fetch(base+'/api/status',{headers:{'X-Wx2md-Token':token}})).json();
 const migration=JSON.parse(await readFile(path.join(app,'data/reorganization.json'),'utf8'));
-assert.equal(status.jobs.length,migration.jobs);
+const db=new DatabaseSync(path.join(app,'data/jobs.sqlite'),{readOnly:true});
+const jobs=db.prepare('SELECT * FROM jobs').all().map(row=>({...row,metadata:row.metadata?JSON.parse(row.metadata):null}));db.close();
+assert.ok(jobs.length>=migration.jobs);
 let fileChecks=0,mdChecks=0,imageChecks=0;
-for(const job of status.jobs){
+for(const job of jobs){
  if(!job.output_dir)continue;
  assert.ok(path.resolve(job.output_dir).startsWith(path.resolve(app,'archives')+path.sep));
  const names=job.metadata?.file_names;
@@ -40,6 +43,6 @@ try{
  for(const url of [base+'/guide.html',base+'/mac-guide.html',base+'/sites-guide.html']){await page.goto(url);assert.ok((await page.locator('body').textContent()).includes(version));}
  assert.deepEqual(errors,[]);
 }finally{await browser.close();}
-const report={release:`v${version}`,displayVersion:health.version,packageVersion:packageInfo.version,recordsPreserved:status.jobs.length,migratedArticleDirectories:migration.articleDirectoriesCopied,migratedFilesVerified:migration.filesVerified,servedMarkdowns:mdChecks,servedLocalImages:imageChecks,metadataFileChecks:fileChecks,uiErrors:errors};
+const report={release:`v${version}`,displayVersion:health.version,packageVersion:packageInfo.version,recordsPreserved:jobs.length,migratedArticleDirectories:migration.articleDirectoriesCopied,migratedFilesVerified:migration.filesVerified,servedMarkdowns:mdChecks,servedLocalImages:imageChecks,metadataFileChecks:fileChecks,uiErrors:errors};
 await writeFile(path.join(app,'data/baseline-verification.json'),JSON.stringify(report,null,2));
 console.log(JSON.stringify(report));

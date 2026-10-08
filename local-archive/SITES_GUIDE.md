@@ -80,3 +80,9 @@ Markdown 的字体、颜色和间距由阅读器决定，以 HTML 为准。新�
 本次当前电脑实际完成博客园文章和 MDN 中文文档的 MD／HTML／双长图保存，离线检查和接缝检查通过。知乎和 CSDN 在该网络返回 403，不能据此称为真实在线归档已验证。Windows、Apple Silicon Mac、Intel Mac 回归状态见 [GitHub Actions](https://github.com/Er1ckPang/wechat-to-markdown/actions/workflows/local-archive.yml)。
 
 新增站点修改 `src/urls.mjs` 和 `src/sites.mjs`，补充自写测试页；输出由同一 `archive.mjs` 生成。修改本指南或 Mac 指南后运行 `pnpm build:guides`。
+
+## 保存记录和动图
+
+首页显示全库摘要及最前12个正在保存／等待条目。进入[保存记录页](http://127.0.0.1:17880/records.html)，按记录分类、状态、网站、公众号／作者、消息来源、北京时间入队日期和关键词筛选。每页20／50／100条，支持排序、翻页、页码跳转；每次筛选最多查看10000条结果，完整数据库不设此删除上限。可缩小条件查找上限外旧记录。
+
+逐屏长图固定GIF、WebP、APNG首帧，以免动图使上下截图重叠区不一致。固定帧使用源像素，无损编码，仅修改临时截图页面。MD的本地图片和单文件HTML仍保存原始动图字节。

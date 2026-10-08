@@ -68,7 +68,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && pathname === '/health') return json(res, 200, { app: 'wx2md-local', version, root });
     if (req.method === 'GET' && pathname === '/api/session') return json(res, 200, { token });
     if (pathname.startsWith('/api/') && !authorized(req)) return json(res, 403, { error: '页面连接已过期，请刷新。' });
-    if (req.method === 'GET' && pathname === '/api/status') return json(res, 200, { version, root, config: publicConfig(), feishu: receiver.status(), jobs: store.list(), stats: store.stats(), worker: worker.status(), maxBatchSize: MAX_BATCH_SIZE, busy: worker.busy, archiveDir: config.archiveDir });
+    if (req.method === 'GET' && pathname === '/api/status') return json(res, 200, { version, root, config: publicConfig(), feishu: receiver.status(), jobs: store.active(), stats: store.stats(), worker: worker.status(), maxBatchSize: MAX_BATCH_SIZE, busy: worker.busy, archiveDir: config.archiveDir });
+    if (req.method === 'GET' && pathname === '/api/jobs') return json(res, 200, store.records(Object.fromEntries(url.searchParams)));
     if (req.method === 'POST' && pathname === '/api/jobs') {
       const input = await body(req);
       const urls = extractArticleUrls(input.text || input.url || '');
@@ -142,7 +143,7 @@ const server = http.createServer(async (req, res) => {
       if (!namedOutput && !localImage && !(legacyOutput && /^(?:article\.md|markdown\.html|original(?:-singlefile)?\.html|images\.html|screenshots\.html|original(?:-\d{3})?\.png|metadata\.json|images\/\d+\.(?:png|jpg|webp|gif|svg|avif|bmp))$/.test(relative))) return json(res, 404, { error: '文件不存在。' });
       return await serveFile(res, path.join(job.output_dir, relative), true);
     }
-    if (req.method === 'GET' && ['/', '/app.js', '/style.css', '/guide.html', '/mac-guide.html', '/sites-guide.html'].includes(pathname)) {
+    if (req.method === 'GET' && ['/', '/app.js', '/records.html', '/records.js', '/job-ui.js', '/style.css', '/guide.html', '/mac-guide.html', '/sites-guide.html'].includes(pathname)) {
       return await serveFile(res, path.join(root, 'public', pathname === '/' ? 'index.html' : pathname.slice(1)));
     }
     return json(res, 404, { error: '地址不存在。' });

@@ -1,3 +1,4 @@
+import { renderJobs as renderRecordJobs } from './job-ui.js';
 const $ = id => document.getElementById(id);
 let token = '', initialized = false, latest = null, lastJobs = '', refreshing = false, toastTimer;
 const statusNames = { pending: '等待保存', processing: '正在保存', completed: '保存完成', partial: '已保存 · 有提示', invalid: '链接已失效', failed: '保存失败', needs_manual: '需要人工确认' };
@@ -8,54 +9,9 @@ async function api(url, data) {
   const value = await res.json(); if (!res.ok) throw new Error(value.error || '操作失败'); return value;
 }
 function element(tag, text, className) { const e = document.createElement(tag); if (text) e.textContent = text; if (className) e.className = className; return e; }
-function actionButton(text, callback) { const button = element('button', text); button.type = 'button'; button.onclick = async () => { button.disabled = true; try { await callback(); await refresh(); } catch (error) { toast(error.message, true); } finally { button.disabled = false; } }; return button; }
 function renderJobs(jobs) {
   if (lastJobs === JSON.stringify(jobs)) return; lastJobs = JSON.stringify(jobs);
-  $('job-count').textContent = jobs.length; $('jobs').replaceChildren();
-  if (!jobs.length) { $('jobs').append(element('div', '还没有保存记录。粘贴第一篇文章链接，开始建立本地收藏。', 'empty')); return; }
-  for (const job of jobs) {
-    const card = element('article', '', 'job'); card.dataset.jobId = job.id;
-    const header = element('div', '', 'job-header');
-    header.append(element('h3', job.title || '文章 · ' + new URL(job.url).hostname + new URL(job.url).pathname));
-    const stateClass = ['failed', 'needs_manual', 'invalid'].includes(job.status) ? 'error' : job.status === 'partial' ? 'warning' : ['pending', 'processing'].includes(job.status) ? 'waiting' : '';
-    header.append(element('span', statusNames[job.status] || job.status, 'badge ' + stateClass)); card.append(header);
-    const source = { manual: '手动保存', feishu: '飞书消息', 'message-test': '消息入口测试', 'user-example': '示例文章' }[job.source] || job.source;
-    card.append(element('div', `${new Date(job.created_at).toLocaleString('zh-CN')} · ${source}${job.metadata?.site_name ? ' · ' + job.metadata.site_name : ''}${job.metadata?.account ? ' · ' + job.metadata.account : ''}${job.metadata?.tool_version ? ' · v' + job.metadata.tool_version : job.metadata?.format_version ? ' · 旧版归档' : ''}`, 'job-meta'));
-    if (job.metadata?.migrations?.length) {
-      const note = element('p', job.output_dir ? '公众号已迁移，已自动转至新链接保存。' : '公众号已迁移，已找到新链接；请查看当前保存提示。', 'migration-note');
-      const link = element('a', '新文章 ↗'); link.href = job.metadata.resolved_url; link.target = '_blank'; link.rel = 'noopener'; note.append(' ', link); card.append(note);
-    }
-    if (job.status === 'processing') card.append(element('div', job.stage + '…', 'stage'));
-    if (job.error) card.append(element('p', job.error, 'error-text'));
-    const actions = element('div', '', 'job-actions');
-    if (job.output_dir) {
-      if (job.metadata?.format_version >= 4) {
-        const names = job.metadata.file_names;
-        for (const [name,text] of [[names.markdown,'MD 文件'],[names.html,'内嵌 HTML'],[names.metadata,'保存信息']]) {
-          const a = element('a',text + ' ↗'); a.href = `/files/${job.id}/${encodeURIComponent(name)}`; a.target = '_blank'; a.rel = 'noopener';
-          if (name === names.markdown) a.download = name;
-          actions.append(a);
-        }
-        for (const [profile,label] of [['mobile','手机长图'],['desktop','电脑长图']]) {
-          const a = element('a',label + ' ↗'); a.href = `/view/${job.id}/${profile}`; a.target = '_blank'; a.rel = 'noopener'; actions.append(a);
-        }
-      } else {
-      const files = [...(job.metadata?.markdown_viewer ? [[job.metadata.markdown_viewer, 'Markdown 阅读'], ['article.md', 'MD 文件']] : [['article.md', 'Markdown']]), ['original.html', '原格式 HTML'],
-        ...(job.metadata?.image_gallery ? [[job.metadata.image_gallery, '原图列表']] : []),
-        ...(job.metadata?.html_files?.includes('original-singlefile.html') ? [['original-singlefile.html', '单文件 HTML']] : []),
-        ...(job.metadata?.screenshot_viewer ? [[job.metadata.screenshot_viewer, '清晰长截图']] : (job.metadata?.screenshots || ['original.png']).map((name, i, all) => [name, all.length > 1 ? `截图 ${i + 1}` : '长截图']))];
-      for (const [name, text] of files) { const a = element('a', text + ' ↗'); a.href = `/files/${job.id}/${name}`; a.target = '_blank'; a.rel = 'noopener'; actions.append(a); }
-      }
-      actions.append(actionButton('打开文件夹', () => api(`/api/jobs/${job.id}/folder`, {})));
-    }
-    if (!['pending', 'processing'].includes(job.status)) actions.append(actionButton('重新保存', () => api(`/api/jobs/${job.id}/retry`, {})));
-    const sourceLink = element('a', '原文 ↗'); sourceLink.href = job.url; sourceLink.target = '_blank'; sourceLink.rel = 'noopener'; actions.append(sourceLink); card.append(actions);
-    if (job.metadata?.warnings?.length) {
-      const details = element('details'); details.append(element('summary', `查看 ${job.metadata.warnings.length} 项保存提示`));
-      const list = element('ul'); job.metadata.warnings.forEach(w => list.append(element('li', w))); details.append(list); card.append(details);
-    }
-    $('jobs').append(card);
-  }
+  renderRecordJobs(jobs, { container:$('jobs'), count:$('job-count'), empty:'当前没有正在保存或等待中的任务。', api, refresh, onError:text=>toast(text,true) });
 }
 async function refresh() {
   if (refreshing) return; refreshing = true;
@@ -70,7 +26,7 @@ async function refresh() {
     $('queue-note').textContent = `${pending} 篇等待 · 并发 ${latest.worker.active}/${latest.worker.concurrency}` + (latest.worker.pausedHosts.length ? ' · 网站限流，等待恢复' : '');
     const invalidCount = latest.stats.invalid || 0;
     $('link-alerts').hidden = !invalidCount;
-    $('link-alerts').textContent = `有 ${invalidCount} 篇文章链接已失效，未保存错误页面。请查看对应记录中的原因；链接恢复后可重新保存。`;
+    $('link-alerts').textContent = `有 ${invalidCount} 篇文章链接已失效，未保存错误页面。请在保存记录页筛选“链接已失效”查看原因；链接恢复后可重新保存。`;
     $('connection-detail').className = 'connection-detail' + (latest.feishu.error ? ' error' : '');
     $('connection-detail').textContent = latest.feishu.error || (latest.feishu.lastEvent ? `${new Date(latest.feishu.lastEvent.at).toLocaleTimeString('zh-CN')} · ${latest.feishu.lastEvent.result}${latest.feishu.lastEvent.senderId ? ' · 发送人 ' + latest.feishu.lastEvent.senderId : ''}` : '接通后，这里会显示最后一条消息的接收情况。');
     $('secret-note').textContent = latest.config.feishu.hasSecret ? '凭据已在本机保存；留空会保留当前 Secret。' : '';
@@ -81,6 +37,11 @@ async function refresh() {
       initialized = true;
     }
     renderJobs(latest.jobs);
+    const stats = latest.stats, total = Object.values(stats).reduce((a,b)=>a+b,0);
+    $('summary-total').textContent = total; $('summary-saved').textContent = (stats.completed || 0) + (stats.partial || 0);
+    $('summary-active').textContent = (stats.pending || 0) + (stats.processing || 0);
+    $('summary-attention').textContent = (stats.invalid || 0) + (stats.failed || 0) + (stats.needs_manual || 0) + (stats.partial || 0);
+    $('active-note').textContent = (stats.pending || 0) + (stats.processing || 0) > latest.jobs.length ? '首页显示最前面的 12 个活跃任务；其余等待任务可在保存记录页查看。' : '已完成及需要处理的记录，请到保存记录页查看。';
   } catch { $('service-text').textContent = '本地工具已停止，请重新启动'; } finally { refreshing = false; }
 }
 document.querySelectorAll('[data-tab]').forEach(button => button.onclick = () => {

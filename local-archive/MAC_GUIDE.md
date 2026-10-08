@@ -82,3 +82,7 @@ Windows 与 Mac 使用同一个飞书应用时，先停止 Windows 接收端，�
 Windows 真实浏览器回归覆盖 MD、HTML、双长图和离线图片。仓库新增 `Local archive cross-platform` 工作流，覆盖 Windows、Apple Silicon Mac（macos-15）与 Intel Mac（macos-15-intel），执行安装、浏览器归档、截图、后台启动、重复启动和停止测试。每次原生测试的实际状态以 GitHub Actions 结果为准。
 
 你的 Mac 上仍需确认具体系统版本、网络、公众号访问验证及飞书应用权限。Mac 和 Windows 的系统字体可能不同，内容与输出格式一致，排版细节以各自浏览器呈现为准。
+
+## 首页与保存记录
+
+首页显示保存摘要和活跃任务；点击“保存记录”进入独立页面，分类和组合筛选后最多查看10000条，按20／50／100条分页。Windows和Mac使用同一数据库查询及页面。长图固定动图首帧，MD和HTML保留原动图。

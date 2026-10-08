@@ -2,10 +2,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { launchBrowser } from '../src/browser.mjs';
 import { PNG } from 'pngjs';
-import { mkdtemp,readFile,rm } from 'node:fs/promises';
+import { mkdtemp,readFile,writeFile,rm } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
 import { captureScreenshot } from '../src/screenshot.mjs';
+
+test('GIF/WebP/APNG 长图固定原像素首帧，原始动图字节不变，接缝和结尾完整', {timeout:120000},async()=>{
+ const directory=await mkdtemp(path.join(os.tmpdir(),'wx2md-animation-test-')),browser=await launchBrowser();
+ try{
+  const page=await browser.newPage({viewport:{width:256,height:480},deviceScaleFactor:2});
+  const originals=await Promise.all(['gif','webp','png'].map(async type=>({type,bytes:await readFile(new URL(`./fixtures/animated/two-frames.${type}`,import.meta.url))})));
+  await writeFile(path.join(directory,'fixture.html'),`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>html,body{margin:0}img{width:256px;height:1024px;display:block}</style><div id="js_content">${originals.map(o=>`<img src="data:image/${o.type};base64,${o.bytes.toString('base64')}">`).join('')}<p id="end">完整结尾</p></div>`);
+  await page.goto(pathToFileURL(path.join(directory,'fixture.html')).href);
+  const result=await captureScreenshot(page,directory,[],2,()=>{},{stem:'animations',fitToViewport:true,singleFile:true});
+  assert.equal(result.check.complete,true);assert.equal(result.check.layout.frozenAnimatedImages.length,3);assert.equal(result.check.maxOverlapDifference,0);assert.ok(result.check.verticalChecks>5);
+  for(const record of result.check.layout.frozenAnimatedImages){assert.equal(record.frame,0);assert.equal(record.width,64);assert.equal(record.height,256);}
+  const output=PNG.sync.read(await readFile(path.join(directory,result.files[0])));
+  for(let y=100;y<6000;y+=180){const pixel=(y*output.width+240)*4;assert.deepEqual([...output.data.subarray(pixel,pixel+3)],[255,0,0],`第 ${y} 行应为首帧红色`);}
+  for(const original of originals)assert.deepEqual(await readFile(new URL(`./fixtures/animated/two-frames.${original.type}`,import.meta.url)),original.bytes);
+  assert.ok((await page.locator('#end').evaluate(e=>e.getBoundingClientRect().bottom))*2<=output.height);
+ }finally{await browser.close();if(path.dirname(directory)===os.tmpdir()&&path.basename(directory).startsWith('wx2md-animation-test-'))await rm(directory,{recursive:true,force:true});}
+});
 
 test('超宽公式SVG等比例缩放，嵌套不换行代码完整换行，两种长图保持全部矢量与结尾', {timeout:120000},async()=>{
  const directory=await mkdtemp(path.join(os.tmpdir(),'wx2md-vector-test-'));const browser=await launchBrowser();

@@ -93,4 +93,7 @@
 <p>自写测试页覆盖 CSDN、博客园、知乎专栏、指定知乎回答、普通文章：真实浏览器生成全部文件，检查原图字节、MD 结构、HTML 断网图片、双长图覆盖及接缝。另验证混合消息、去重、公网地址校验、列表／验证页／付费提示拒绝、多回答隔离。测试页不含真实网站文章内容。</p>
 <p>本次当前电脑实际完成博客园文章和 MDN 中文文档的 MD／HTML／双长图保存，离线检查和接缝检查通过。知乎和 CSDN 在该网络返回 403，不能据此称为真实在线归档已验证。Windows、Apple Silicon Mac、Intel Mac 回归状态见 <a href="https://github.com/Er1ckPang/wechat-to-markdown/actions/workflows/local-archive.yml">GitHub Actions</a>。</p>
 <p>新增站点修改 <code>src/urls.mjs</code> 和 <code>src/sites.mjs</code>，补充自写测试页；输出由同一 <code>archive.mjs</code> 生成。修改本指南或 Mac 指南后运行 <code>pnpm build:guides</code>。</p>
+<h2>保存记录和动图</h2>
+<p>首页显示全库摘要及最前12个正在保存／等待条目。进入<a href="http://127.0.0.1:17880/records.html">保存记录页</a>，按记录分类、状态、网站、公众号／作者、消息来源、北京时间入队日期和关键词筛选。每页20／50／100条，支持排序、翻页、页码跳转；每次筛选最多查看10000条结果，完整数据库不设此删除上限。可缩小条件查找上限外旧记录。</p>
+<p>逐屏长图固定GIF、WebP、APNG首帧，以免动图使上下截图重叠区不一致。固定帧使用源像素，无损编码，仅修改临时截图页面。MD的本地图片和单文件HTML仍保存原始动图字节。</p>
 </main></body></html>

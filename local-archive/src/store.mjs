@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { articleUrl, articleKey } from './urls.mjs';
 import { validateBatch } from './limits.mjs';
+import { queryRecords, compactJob } from './record-query.mjs';
 
 export class Store {
   constructor(filename) {
@@ -17,6 +18,8 @@ export class Store {
         attempts INTEGER NOT NULL DEFAULT 0, title TEXT, output_dir TEXT,
         metadata TEXT, error TEXT);
       CREATE INDEX IF NOT EXISTS jobs_key ON jobs(article_key);
+      CREATE INDEX IF NOT EXISTS jobs_created ON jobs(created_at);
+      CREATE INDEX IF NOT EXISTS jobs_status_created ON jobs(status,created_at);
       CREATE TABLE IF NOT EXISTS received_messages (id TEXT PRIMARY KEY, received_at TEXT NOT NULL);
     `);
     this.db.prepare("UPDATE jobs SET status='pending', stage='重新启动后继续保存', updated_at=? WHERE status='processing'").run(new Date().toISOString());
@@ -57,6 +60,8 @@ export class Store {
     catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
   list(limit = 300) { return this.db.prepare('SELECT * FROM jobs ORDER BY created_at DESC, rowid DESC LIMIT ?').all(limit).map(row => this.decode(row)); }
+  records(filters = {}) { return queryRecords(this, filters); }
+  active() { return this.db.prepare("SELECT * FROM jobs WHERE status IN ('processing','pending') ORDER BY CASE status WHEN 'processing' THEN 0 ELSE 1 END,created_at,rowid LIMIT 12").all().map(row=>compactJob(this.decode(row))); }
   stats() { return Object.fromEntries(this.db.prepare('SELECT status, COUNT(*) AS count FROM jobs GROUP BY status').all().map(row => [row.status, row.count])); }
   pending() { return this.db.prepare("SELECT * FROM jobs WHERE status='pending' ORDER BY created_at, rowid").all().map(row => this.decode(row)); }
   claim(id) { return this.decode(this.db.prepare("UPDATE jobs SET status='processing', stage='准备保存', attempts=attempts+1, updated_at=? WHERE id=? AND status='pending' RETURNING *").get(new Date().toISOString(), id)); }
