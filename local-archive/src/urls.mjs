@@ -90,7 +90,7 @@ export function resourceAllowed(input, fixtureOrigin, platform = 'wechat') {
   if (fixtureOrigin && url.origin === fixtureOrigin) return true;
   if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.port) return false;
   if (platform !== 'wechat') { try { publicWebUrl(url.href); return true; } catch { return false; } }
-  return ['weixin.qq.com', 'wx.qq.com', 'qpic.cn', 'qlogo.cn', 'gtimg.com']
+  return ['weixin.qq.com', 'wx.qq.com', 'qpic.cn', 'qlogo.cn', 'gtimg.com', 'captcha.qq.com']
     .some(domain => url.hostname === domain || url.hostname.endsWith('.' + domain));
 }
 

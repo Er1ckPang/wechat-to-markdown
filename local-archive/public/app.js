@@ -54,6 +54,15 @@ $('save').onclick = () => submit($('save'), async () => {
   toast(duplicate === result.results.length ? '这些文章已在保存记录中。' : `已加入 ${result.results.length - duplicate} 篇文章${duplicate ? `，跳过 ${duplicate} 篇重复文章` : ''}。`);
   $('links').value = '';
 });
+let importJob = new URL(location.href).searchParams.get('importJob') || '';
+$('import-form').onsubmit = event => { event.preventDefault(); submit(event.submitter, async () => {
+  const file = $('import-file').files[0];
+  if (!file || file.size > 64*1024*1024) throw new Error('请选择不超过 64 MB 的单个网页文件。');
+  const params = new URLSearchParams({url:$('import-url').value,filename:file.name,...(importJob ? {jobId:importJob} : {})});
+  const response = await fetch('/api/browser-import?'+params,{method:'POST',headers:{'X-Wx2md-Token':token,'Content-Type':'application/octet-stream'},body:file});
+  const result = await response.json(); if (!response.ok) throw new Error(result.error || '导入失败');
+  $('import-form').reset(); importJob = ''; $('import-note').textContent = ''; toast('已加入导入任务。生成进度在首页显示，结果在保存记录页查看。');
+}); };
 $('settings-form').onsubmit = event => { event.preventDefault(); submit(event.submitter, async () => { await api('/api/config', { archiveDir: $('archive-dir').value, screenshotScale: Number($('screenshot-scale').value), concurrency: Number($('concurrency').value), showBrowser: $('show-browser').checked }); toast('保存设置已更新。'); }); };
 $('feishu-form').onsubmit = event => { event.preventDefault(); submit(event.submitter, async () => {
   await api('/api/config', { feishu: { appId: $('app-id').value, appSecret: $('app-secret').value, allowedSenders: $('allowed-senders').value, enabled: $('feishu-enabled').checked } });
@@ -63,4 +72,11 @@ $('reconnect').onclick = () => submit($('reconnect'), async () => { await api('/
 $('simulate').onclick = () => submit($('simulate'), async () => { const result = await api('/api/simulate-message', { text: $('message-test').value }); toast(`消息提取成功：${result.jobs.length} 个链接已处理，已保存文章会自动去重。`); });
 $('open-root').onclick = () => submit($('open-root'), () => api('/api/open-archive', {}));
 $('stop').onclick = () => submit($('stop'), async () => { await api('/api/stop', {}); toast('本地工具已停止；双击启动文件可再次运行。'); });
-try { token = (await (await fetch('/api/session')).json()).token; await refresh(); setInterval(refresh, 1800); } catch { toast('无法连接本地工具，请重新启动。', true); }
+try {
+  token = (await (await fetch('/api/session')).json()).token; await refresh(); setInterval(refresh, 1800);
+  if (importJob && /^[a-f0-9-]{36}$/.test(importJob)) {
+    const job = await api('/api/jobs/'+importJob);
+    $('import-url').value = job.resolved_url || job.url; $('import-note').textContent = '导入成功后会继续这条原任务，保留公众号迁移记录。';
+    $('browser-import').open = true; $('browser-import').scrollIntoView();
+  } else if (location.hash === '#browser-import') { $('browser-import').open = true; $('browser-import').scrollIntoView(); }
+} catch { toast('无法连接本地工具，请重新启动。', true); }

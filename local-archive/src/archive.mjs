@@ -10,7 +10,8 @@ import { extractArticle } from './extract.mjs';
 import { articleToMarkdown } from './markdown.mjs';
 import { linkLocalImages } from './html.mjs';
 import { captureScreenshot } from './screenshot.mjs';
-import { resolveArticleLink, inspectLinkState, InvalidArticleError, NeedsManualError, evaluateStable } from './link-state.mjs';
+import { resolveArticleLink, InvalidArticleError, NeedsManualError, evaluateStable, waitForReadableArticle } from './link-state.mjs';
+import { readBrowserImport } from './browser-import.mjs';
 export { InvalidArticleError, NeedsManualError } from './link-state.mjs';
 
 const singleFilePath = fileURLToPath(new URL('../vendor/singlefile.js', import.meta.url));
@@ -59,7 +60,7 @@ async function loadImages(page) {
 export async function archiveArticle(job, config, onStage = () => {}, testOptions = {}) {
   // fixtureOrigin is injectable only through tests, never through the public HTTP API.
   const fixtureOrigin = testOptions.fixtureOrigin;
-  const sourceUrl = fixtureOrigin ? job.url : articleUrl(job.url);
+  const sourceUrl = fixtureOrigin ? job.url : articleUrl(job.metadata?.browser_import_url || job.url);
   let site = fixtureOrigin ? testOptions.site || { platform: 'wechat', label: '微信公众号', kind: 'article' } : articleSite(sourceUrl);
   const allowed = createResourcePolicy(site.platform, { fixtureOrigin });
   const captureScale = [1, 2, 3, 4].includes(Number(config.screenshotScale)) ? Number(config.screenshotScale) : 3;
@@ -68,18 +69,28 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
   let context, stageDirectory, finalDirectory, linkDetails;
   let maxTime = setTimeout(() => browser.close().catch(() => {}), 300000);
   try {
+    const imported = job.metadata?.browser_import ? await readBrowserImport(browser,job.metadata.browser_import,sourceUrl,testOptions.importDirectory) : null;
     context = await browser.newContext({ viewport: { width: site.platform === 'wechat' ? 432 : 1280, height: 768 }, deviceScaleFactor: captureScale, locale: 'zh-CN', timezoneId: 'Asia/Shanghai', colorScheme: 'light', serviceWorkers: 'block' });
     let page = await context.newPage();
-    const cache = new Map();
+    const cache = new Map(imported?.resources);
     context.on('response', response => {
       const url = response.url();
       const type = response.headers()['content-type'] || '';
+      if (imported) return;
       if (resourceAllowed(url, fixtureOrigin, site.platform) && response.ok() && /image\/|text\/css|font\/|application\/(?:font|octet-stream)/.test(type)) {
         cache.set(url, response.body().then(bytes => bytes.length <= 25 * 1024 * 1024 ? { bytes, type, status: response.status() } : null).catch(() => null));
       }
     });
     await context.route('**/*', async route => {
       const url = route.request().url();
+      if (imported) {
+        if (url === sourceUrl && route.request().isNavigationRequest()) return route.fulfill({status:200,contentType:'text/html; charset=utf-8',body:imported.html});
+        const saved = imported.resources.get(url);
+        if (saved) return route.fulfill({status:200,contentType:saved.type,body:saved.bytes});
+        if (stageDirectory && url.startsWith(pathToFileURL(stageDirectory + path.sep).href)) return route.continue();
+        if (['image','stylesheet','font'].includes(route.request().resourceType())) failedResources.add(url);
+        return route.abort();
+      }
       if (await allowed(url)) await route.continue().catch(() => {});
       else {
         if (new URL(url).hostname === 'badjs.weixinbridge.com') auxiliaryRequests.add(url);
@@ -87,10 +98,13 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
         await route.abort().catch(() => {});
       }
     });
-    onStage('打开文章');
-    const { response, migrations } = await resolveArticleLink(page, sourceUrl, site, config, onStage, { fixtureOrigin });
+    onStage(imported ? '读取普通浏览器保存的网页' : '打开文章');
+    const { response, migrations, state:initialState } = imported
+      ? { response:await page.goto(sourceUrl,{waitUntil:'load',timeout:30000}),migrations:job.metadata.migrations || [],state:{state:'article'} }
+      : await resolveArticleLink(page, sourceUrl, site, config, onStage, { fixtureOrigin });
     linkDetails = { link_state: migrations.length ? 'migrated' : 'available', original_url: job.url,
-      resolved_url: migrations.at(-1)?.to || page.url(), migrations };
+      resolved_url: migrations.at(-1)?.to || (initialState?.state === 'verification' ? sourceUrl : page.url()), migrations,
+      ...(initialState?.state === 'verification' ? {requires_verification:true} : {}) };
     if (response && response.status() >= 400 && !config.showBrowser) {
       throw new NeedsManualError(`${site.label}返回 HTTP ${response.status()}，未保存错误页面。请确认文章可访问，或启用“显示采集浏览器”后重试。`);
     }
@@ -104,15 +118,8 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       } catch { /* The body check below classifies login pages without saving them. */ }
     }
     if (await evaluateStable(page, expandPublicArticle, site)) await sleep(500);
-    let info = await evaluateStable(page, inspectArticlePage, site);
-    const deadline = Date.now() + (config.showBrowser ? 90000 : 12000);
-    while (!info.ready && Date.now() < deadline) {
-      const state = await evaluateStable(page, inspectLinkState, { platform: site.platform, httpStatus: response?.status() || 200 });
-      if (state.state === 'invalid') throw new InvalidArticleError(state.message, { reason: state.reason, original_url: sourceUrl, resolved_url: page.url(), migrations });
-      if (state.state === 'throttled') { const error = new NeedsManualError(state.message); error.retryAfterMs = 60000; throw error; }
-      await sleep(500); info = await evaluateStable(page, inspectArticlePage, site);
-    }
-    if (!info.ready) throw new NeedsManualError(`无法读取${site.label}的单篇文章正文。页面可能需要登录、验证或没有可识别的文章。可启用“显示采集浏览器”后重试；不保存登录或验证页面。`);
+    const info = imported ? await evaluateStable(page,inspectArticlePage,site) : await waitForReadableArticle(page, site, config, linkDetails, onStage, response?.status() || 200);
+    if (!info.ready) throw new NeedsManualError('导入文件没有可识别的文章正文。请在普通浏览器中打开实际正文、滚动加载图片后重新保存；不要保存验证码或登录页面。');
     if (!fixtureOrigin) {
       try {
         const resolved = articleSite(articleUrl(page.url()));
@@ -163,7 +170,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
 
     async function getResource(input, redirects = 0) {
       const url = new URL(input, resolvedSourceUrl).href;
-      if (!(await allowed(url))) throw new Error('资源地址不可访问或指向非公网地址。');
+      if (!imported && !(await allowed(url))) throw new Error('资源地址不可访问或指向非公网地址。');
       if (url.startsWith('data:')) {
         const match = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(url);
         if (!match) throw new Error('无效的内嵌资源。');
@@ -171,6 +178,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       }
       const cached = await cache.get(url);
       if (cached && cached.bytes.length) return cached;
+      if (imported) { failedResources.add(url); throw new Error('保存的网页文件未包含这个资源。请滚动加载图片后重新保存为单文件网页。'); }
       if (redirects > 4) throw new Error('资源重定向次数过多。');
       let lastError;
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -208,7 +216,9 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
     }
     if (failedImages.length) warnings.push(`${failedImages.length} 张 Markdown 图片下载失败，保留了原链接。`);
     article.html = await page.evaluate(({ html, mapping }) => {
-      const container = document.createElement('div'); container.innerHTML = html;
+      // Markdown-only replacement in an inert document must not request local
+      // output paths from the publisher's website.
+      const container = new DOMParser().parseFromString(html,'text/html').body;
       container.querySelectorAll('img').forEach(image => {
         const replacement = mapping[image.getAttribute('src')];
         if (replacement) image.setAttribute('src', replacement);
@@ -306,6 +316,8 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       site: site.platform, site_name: site.label, article_kind: site.kind, extraction: article.extraction,
       original_url: job.url, resolved_url: article.sourceUrl, saved_at: savedAt.toISOString(), timezone: 'Asia/Shanghai',
       link_state: migrations.length ? 'migrated' : 'available', migrations,
+      ...(imported ? {browser_import:imported.provenance} : {}),
+      ...(linkDetails.requires_verification ? { access_verification:{required:true,completed:true,method:'normal_browser_verification'} } : {}),
       source: job.source || 'manual', browser: browser.version(), platform: process.platform,
       file_names: fileNames, files: fileInfo, screenshots: screenshotFiles, screenshot_scale: captureScale,
       screenshot_profiles: screenshotProfiles, image_files: imageFiles,

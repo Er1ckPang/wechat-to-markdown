@@ -6,7 +6,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { launchBrowser } from '../src/browser.mjs';
-import { inspectLinkState, migrationTarget, NeedsManualError, InvalidArticleError } from '../src/link-state.mjs';
+import { inspectLinkState, migrationTarget, NeedsManualError, InvalidArticleError, resolveArticleLink, waitForReadableArticle } from '../src/link-state.mjs';
+import { resourceAllowed } from '../src/urls.mjs';
 import { archiveArticle } from '../src/archive.mjs';
 import { Store } from '../src/store.mjs';
 import { Worker } from '../src/worker.mjs';
@@ -16,7 +17,7 @@ test('失效提示分类；验证码和限流不误判；正文引用删除或�
     for(const [text,reason] of [['该内容已被发布者删除','deleted'],['链接已过期','expired'],['此内容涉嫌侵权，无法查看','copyright'],['该内容因违规无法查看','removed'],['此账号已自主注销，内容无法查看','account_removed']]){
       await page.setContent(`<div class="weui-msg"><h1>${text}</h1></div>`);const state=await page.evaluate(inspectLinkState,{platform:'wechat'});assert.equal(state.state,'invalid');assert.equal(state.reason,reason);
     }
-    await page.setContent('<div class="weui-msg">环境异常，请完成验证，此内容无法查看</div>');assert.equal((await page.evaluate(inspectLinkState,{platform:'wechat'})).state,'unknown');
+    await page.setContent('<div class="weui-msg">环境异常，请完成验证，此内容无法查看</div>');assert.equal((await page.evaluate(inspectLinkState,{platform:'wechat'})).state,'verification');
     await page.setContent('<div class="weui-msg">访问过于频繁，此内容无法查看</div>');assert.equal((await page.evaluate(inspectLinkState,{platform:'wechat'})).state,'throttled');
     await page.setContent('<div id="js_content">一篇介绍“该内容已被发布者删除”和“该公众号已迁移”的教程。</div>');assert.equal((await page.evaluate(inspectLinkState,{platform:'wechat'})).state,'article');
     await page.setContent('<title>Not found</title>');assert.equal((await page.evaluate(inspectLinkState,{platform:'web',httpStatus:404})).state,'invalid');
@@ -24,6 +25,7 @@ test('失效提示分类；验证码和限流不误判；正文引用删除或�
     assert.equal((await page.evaluate(inspectLinkState,{platform:'web',httpStatus:429})).state,'throttled');
     assert.equal(migrationTarget('http://mp.weixin.qq.com/s?__biz=test&mid=123&idx=1&sn=x#wechat_redirect','https://mp.weixin.qq.com/s/old'),'https://mp.weixin.qq.com/s?__biz=test&mid=123&idx=1&sn=x');
     for(const url of ['https://example.com/a','http://127.0.0.1/a','javascript:alert(1)','https://mp.weixin.qq.com/other','https://u:p@mp.weixin.qq.com/s/new'])assert.throws(()=>migrationTarget(url,'https://mp.weixin.qq.com/s/old'),NeedsManualError);
+    assert.equal(resourceAllowed('https://t.captcha.qq.com/cap_union_prehandle'),true);assert.equal(resourceAllowed('https://captcha.qq.com.evil.example/cap_union_prehandle'),false);
   }finally{await browser.close();}
 });
 
@@ -38,7 +40,9 @@ test('迁移文章完整保存：实体链接、二次JS跳转、迁移记录；
     if(req.url==='/loop')return res.end(migration('/loop'));
     if(req.url==='/external')return res.end(migration('https://example.com/article'));
     if(req.url==='/missing')return res.end(migration(''));
-    if(req.url==='/delayed')return res.end('<script>setTimeout(()=>location.href="/new?from=old&ok=1",250)</script>');
+    if(req.url==='/delayed'){if(!req.headers.referer?.endsWith('/old')){res.statusCode=403;return res.end('migration referer required');}return res.end('<script>setTimeout(()=>location.href="/new?from=old&ok=1",250)</script>');}
+    if(req.url==='/blank-gate')return res.end(migration('/mp/wappoc_appmsgcaptcha'));
+    if(req.url==='/mp/wappoc_appmsgcaptcha')return res.end('<div id="verification-fixture"></div>');
     if(req.url==='/gate')return res.end('<div class="weui-msg">环境异常，请完成验证</div>');
     if(req.url==='/moved-gate')return res.end(migration('/gate'));
     if(req.url==='/old')return res.end(migration('/delayed'));
@@ -55,7 +59,21 @@ test('迁移文章完整保存：实体链接、二次JS跳转、迁移记录；
     for(const profile of Object.values(result.metadata.screenshot_profiles)){assert.equal(profile.check.complete,true);assert.equal(profile.check.maxOverlapDifference,0);}
     for(const url of ['/deleted','/404'])await assert.rejects(archive(url),InvalidArticleError);
     for(const [url,pattern] of [['/loop',/循环/],['/external',/不是微信/],['/missing',/没有提供/],['/chain/0',/超过 5/]])await assert.rejects(archive(url),e=>e instanceof NeedsManualError&&pattern.test(e.message));
-    await assert.rejects(archive('/moved-gate'),e=>e instanceof NeedsManualError&&e.details.link_state==='migrated'&&e.details.resolved_url===origin+'/gate');
+    await assert.rejects(archive('/moved-gate'),e=>e instanceof NeedsManualError&&e.details.link_state==='migrated'&&e.details.resolved_url===origin+'/gate'&&e.details.requires_verification);
+    await assert.rejects(archive('/blank-gate'),e=>e instanceof NeedsManualError&&e.details.requires_verification&&/打开浏览器验证并继续保存/.test(e.message));
+    // Simulate a user's normal verification navigation in the same browser.
+    // The fixture has no challenge, and does not implement a CAPTCHA solver.
+    const verificationBrowser=await launchBrowser();
+    try{
+      const page=await verificationBrowser.newPage(),site={platform:'wechat',label:'微信公众号'};
+      const link=await resolveArticleLink(page,origin+'/blank-gate',site,{},()=>{},{fixtureOrigin:origin});
+      assert.equal(link.state.state,'verification');const details={migrations:link.migrations,resolved_url:origin+'/mp/wappoc_appmsgcaptcha'};
+      let announced=false;
+      const info=await waitForReadableArticle(page,site,{showBrowser:true},details,()=>{announced=true;setTimeout(()=>page.goto(origin+'/new').catch(()=>{}),50);});
+      assert.equal(announced,true);assert.equal(info.ready,true);assert.equal(details.requires_verification,true);assert.equal(page.url(),origin+'/new');
+      await page.goto(origin+'/gate');
+      await assert.rejects(waitForReadableArticle(page,site,{showBrowser:true},{migrations:link.migrations},()=>{setTimeout(()=>page.close(),50);}),e=>e instanceof NeedsManualError&&e.details.requires_verification&&/窗口已关闭/.test(e.message));
+    }finally{await verificationBrowser.close();}
     const store=new Store(path.join(temp,'worker.sqlite'));
     let active=0,maxActive=0;
     const worker=new Worker(store,()=>({archiveDir:temp,screenshotScale:1,concurrency:2}),{startGap:1,archive:async(job,config,onStage,options)=>{

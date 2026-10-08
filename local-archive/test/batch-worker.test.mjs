@@ -20,6 +20,17 @@ async function queue(t) {
 }
 const result={status:'completed',title:'测试',outputDir:null,metadata:{link_state:'available'}};
 
+test('单篇微信验证重试开启采集浏览器，保留迁移信息，不改全局设置或影响其他任务',async t=>{
+  const store=await queue(t),config={concurrency:2,showBrowser:false},seen=[];
+  const verified=store.enqueue('https://mp.weixin.qq.com/s/verification').job;
+  store.update(verified.id,{status:'needs_manual',metadata:{requires_verification:true,link_state:'migrated',resolved_url:'https://mp.weixin.qq.com/s/new',migrations:[{from:verified.url,to:'https://mp.weixin.qq.com/s/new'}]}});
+  const retry=store.retry(verified.id,{verification:true});assert.equal(retry.metadata.migrations.length,1);assert.equal(retry.metadata.verification_requested,true);
+  const ordinary=store.enqueue('https://example.com/normal').job;assert.throws(()=>store.retry(ordinary.id,{verification:true}));
+  const worker=new Worker(store,()=>config,{startGap:0,archive:async(job,settings)=>{seen.push({id:job.id,showBrowser:settings.showBrowser});return result;}});store.cleanupWorkers.push(worker);worker.start();
+  await until(()=>seen.length===2&&!worker.busy);assert.equal(seen.find(job=>job.id===verified.id).showBrowser,true);assert.equal(seen.find(job=>job.id===ordinary.id).showBrowser,false);assert.equal(config.showBrowser,false);
+  store.update(verified.id,{status:'needs_manual',metadata:{requires_verification:true,verification_requested:true}});assert.equal(store.retry(verified.id).metadata.verification_requested,undefined);worker.stop();
+});
+
 test('100篇持久批次：重复链接去重，101篇完全拒绝，入队失败回滚，消息入口同上限',async t=>{
   const store=await queue(t);const urls=Array.from({length:100},(_,i)=>`https://mp.weixin.qq.com/s/batch-${i}`);
   assert.equal(extractArticleUrls([...urls,urls[0]].join('\n')).length,100);

@@ -10,10 +10,10 @@ export function renderJobs(jobs, { container, count, empty, api, refresh, onErro
     header.append(element('h3', job.title || '文章 · ' + new URL(job.url).hostname + new URL(job.url).pathname));
     const stateClass = ['failed', 'needs_manual', 'invalid'].includes(job.status) ? 'error' : job.status === 'partial' ? 'warning' : ['pending', 'processing'].includes(job.status) ? 'waiting' : '';
     header.append(element('span', statusNames[job.status] || job.status, 'badge ' + stateClass)); card.append(header);
-    const source = { manual: '手动保存', feishu: '飞书消息', 'message-test': '消息入口测试', 'user-example': '示例文章' }[job.source] || job.source;
+    const source = { manual: '手动保存', feishu: '飞书消息', 'message-test': '消息入口测试', 'user-example': '示例文章', 'browser-import':'普通浏览器导入' }[job.source] || job.source;
     card.append(element('div', `${new Date(job.created_at).toLocaleString('zh-CN')} · ${source}${job.metadata?.site_name ? ' · ' + job.metadata.site_name : ''}${job.metadata?.account ? ' · ' + job.metadata.account : ''}${job.metadata?.tool_version ? ' · v' + job.metadata.tool_version : job.metadata?.format_version ? ' · 旧版归档' : ''}`, 'job-meta'));
     if (job.metadata?.migrations?.length) {
-      const note = element('p', job.output_dir ? '公众号已迁移，已自动转至新链接保存。' : '公众号已迁移，已找到新链接；请查看当前保存提示。', 'migration-note');
+      const note = element('p', job.output_dir && ['completed','partial'].includes(job.status) ? job.metadata.browser_import ? '公众号已迁移，已从普通浏览器文件保存新文章。' : '公众号已迁移，已自动转至新链接保存。' : job.metadata.requires_verification ? '已找到迁移后的新文章；可在普通浏览器正常打开后导入，或稍后完成采集浏览器验证。' : '公众号已迁移，已找到新链接；请查看当前保存提示。', 'migration-note');
       const link = element('a', '新文章 ↗'); link.href = job.metadata.resolved_url; link.target = '_blank'; link.rel = 'noopener'; note.append(' ', link); card.append(note);
     }
     if (job.status === 'processing') card.append(element('div', job.stage + '…', 'stage'));
@@ -38,6 +38,10 @@ export function renderJobs(jobs, { container, count, empty, api, refresh, onErro
       for (const [name, text] of files) { const a = element('a', text + ' ↗'); a.href = `/files/${job.id}/${name}`; a.target = '_blank'; a.rel = 'noopener'; actions.append(a); }
       }
       actions.append(actionButton('打开文件夹', () => api(`/api/jobs/${job.id}/folder`, {})));
+    }
+    if (['needs_manual','failed'].includes(job.status) && job.metadata?.requires_verification) {
+      actions.append(actionButton('打开浏览器验证并继续保存', () => api(`/api/jobs/${job.id}/verify`, {})));
+      const imported = element('a','从普通浏览器导入'); imported.href = `/?importJob=${job.id}#browser-import`; actions.append(imported);
     }
     if (!['pending', 'processing'].includes(job.status)) actions.append(actionButton('重新保存', () => api(`/api/jobs/${job.id}/retry`, {})));
     const sourceLink = element('a', '原文 ↗'); sourceLink.href = job.url; sourceLink.target = '_blank'; sourceLink.rel = 'noopener'; actions.append(sourceLink); card.append(actions);

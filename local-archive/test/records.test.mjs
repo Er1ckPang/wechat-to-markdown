@@ -44,13 +44,21 @@ test('筛选日期使用北京时间且包含当天，关键词按字面匹配�
 test('记录页在真实浏览器中筛选、翻页、跳转、清空及后退，首页只展示活跃条目', {timeout:120000},async t=>{
   const store=await fixture(t);
   for(let n=0;n<25;n++){const job=store.enqueue(`https://mp.weixin.qq.com/s/ui-fixture-${n}`).job;store.update(job.id,{title:`文章 ${n}`,status:n===0?'invalid':'completed',error:n===0?'作者已删除':null,metadata:{site:'wechat',account:'示例作者'}});}
+  const verification=store.list().find(job=>job.title==='文章 1');store.update(verification.id,{status:'needs_manual',metadata:{site:'wechat',requires_verification:true}});
   const pending=store.enqueue('https://mp.weixin.qq.com/s/ui-active').job;
-  const publicFiles=new Set(['index.html','app.js','job-ui.js','records.html','records.js','style.css']),errors=[];
+  const publicFiles=new Set(['index.html','app.js','job-ui.js','records.html','records.js','style.css']),errors=[];let upload;
   const server=http.createServer(async(req,res)=>{
     try{
       const url=new URL(req.url,'http://127.0.0.1'),file=url.pathname==='/'?'index.html':url.pathname.slice(1);
       if(url.pathname==='/api/session')return res.end(JSON.stringify({token:'fixture'}));
       if(url.pathname==='/api/jobs')return res.end(JSON.stringify(store.records(Object.fromEntries(url.searchParams))));
+      if(url.pathname===`/api/jobs/${verification.id}/verify` && req.method==='POST')return res.end(JSON.stringify(store.retry(verification.id,{verification:true})));
+      if(url.pathname===`/api/jobs/${verification.id}`)return res.end(JSON.stringify({id:verification.id,url:verification.url,status:'needs_manual'}));
+      if(url.pathname==='/api/browser-import' && req.method==='POST') {
+        const chunks=[];for await(const chunk of req)chunks.push(chunk);
+        upload={token:req.headers['x-wx2md-token'],filename:url.searchParams.get('filename'),url:url.searchParams.get('url'),jobId:url.searchParams.get('jobId'),bytes:Buffer.concat(chunks).toString()};
+        return res.end(JSON.stringify({job:{id:verification.id}}));
+      }
       if(url.pathname==='/api/status')return res.end(JSON.stringify({version:'1.3.0.p',root:'fixture',jobs:store.active(),stats:store.stats(),busy:false,worker:{active:0,concurrency:2,pausedHosts:[]},feishu:{state:'disabled'},config:{archiveDir:'fixture',screenshotScale:3,concurrency:2,feishu:{hasSecret:false,appId:'',enabled:false,allowedSenders:[]}}}));
       if(publicFiles.has(file)){res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html; charset=utf-8');return res.end(await readFile(new URL('../public/'+file,import.meta.url)));}
       res.statusCode=404;res.end();
@@ -69,6 +77,13 @@ test('记录页在真实浏览器中筛选、翻页、跳转、清空及后退�
     await page.locator('[name=q]').fill('不存在');await submit();assert.equal(await page.locator('#jobs .job').count(),0);
     await page.getByRole('button',{name:'清空筛选',exact:true}).click();await page.locator('#result-summary').getByText('匹配 26 条',{exact:false}).waitFor();
     await page.goBack();await page.locator('#result-summary').getByText('匹配 0 条',{exact:false}).waitFor();assert.equal(await page.locator('[name=q]').inputValue(),'不存在');
+    await page.getByRole('button',{name:'清空筛选',exact:true}).click();await page.locator('#result-summary').getByText('匹配 26 条',{exact:false}).waitFor();
+    await page.locator('[name=status]').selectOption('needs_manual');await submit();await page.getByRole('button',{name:'打开浏览器验证并继续保存',exact:true}).click();await page.locator('#result-summary').getByText('匹配 0 条',{exact:false}).waitFor();assert.equal(store.get(verification.id).metadata.verification_requested,true);
+    await page.goto(base+`/?importJob=${verification.id}#browser-import`);await page.waitForFunction(()=>document.querySelector('#import-url').value.length>0);
+    assert.equal(await page.locator('#import-url').inputValue(),verification.url);assert.equal(await page.locator('#browser-import').getAttribute('open'),'');
+    await page.locator('#import-file').setInputFiles({name:'单文件.html',mimeType:'text/html',buffer:Buffer.from('<article>导入测试</article>')});
+    await page.getByRole('button',{name:'导入并生成归档',exact:true}).click();await page.locator('#toast').getByText('已加入导入任务。',{exact:false}).waitFor();
+    assert.deepEqual(upload,{token:'fixture',filename:'单文件.html',url:verification.url,jobId:verification.id,bytes:'<article>导入测试</article>'});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),390);assert.deepEqual(errors,[]);
   }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 });

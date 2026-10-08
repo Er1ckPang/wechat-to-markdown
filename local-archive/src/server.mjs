@@ -11,6 +11,7 @@ import { FeishuReceiver } from './feishu.mjs';
 import { extractArticleUrls } from './urls.mjs';
 import { screenshotViewer } from './html.mjs';
 import { validateBatch, concurrency, DEFAULT_CONCURRENCY, MAX_BATCH_SIZE } from './limits.mjs';
+import { receiveImport, removeImport } from './browser-import.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const packageInfo = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
@@ -70,6 +71,18 @@ const server = http.createServer(async (req, res) => {
     if (pathname.startsWith('/api/') && !authorized(req)) return json(res, 403, { error: '页面连接已过期，请刷新。' });
     if (req.method === 'GET' && pathname === '/api/status') return json(res, 200, { version, root, config: publicConfig(), feishu: receiver.status(), jobs: store.active(), stats: store.stats(), worker: worker.status(), maxBatchSize: MAX_BATCH_SIZE, busy: worker.busy, archiveDir: config.archiveDir });
     if (req.method === 'GET' && pathname === '/api/jobs') return json(res, 200, store.records(Object.fromEntries(url.searchParams)));
+    const jobDetail = /^\/api\/jobs\/([a-f0-9-]+)$/.exec(pathname);
+    if (req.method === 'GET' && jobDetail) {
+      const job = store.get(jobDetail[1]); if (!job) return json(res,404,{error:'任务不存在。'});
+      return json(res,200,{id:job.id,url:job.url,status:job.status,resolved_url:job.metadata?.resolved_url});
+    }
+    if (req.method === 'POST' && pathname === '/api/browser-import') {
+      const descriptor = await receiveImport(req,url.searchParams.get('filename') || '');
+      try {
+        const job = store.enqueueImport(url.searchParams.get('url') || '',descriptor,url.searchParams.get('jobId') || '');
+        worker.kick(); return json(res,202,{job});
+      } catch(error) { await removeImport(descriptor); throw error; }
+    }
     if (req.method === 'POST' && pathname === '/api/jobs') {
       const input = await body(req);
       const urls = extractArticleUrls(input.text || input.url || '');
@@ -110,10 +123,10 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { config: publicConfig(), feishu: receiver.status() });
     }
     if (req.method === 'POST' && pathname === '/api/feishu/reconnect') { receiver.start(); return json(res, 200, receiver.status()); }
-    const jobAction = /^\/api\/jobs\/([a-f0-9-]+)\/(retry|folder)$/.exec(pathname);
+    const jobAction = /^\/api\/jobs\/([a-f0-9-]+)\/(retry|verify|folder)$/.exec(pathname);
     if (req.method === 'POST' && jobAction) {
       const job = store.get(jobAction[1]); if (!job) throw new Error('任务不存在。');
-      if (jobAction[2] === 'retry') { const result = store.retry(job.id); worker.kick(); return json(res, 202, result); }
+      if (['retry','verify'].includes(jobAction[2])) { const result = store.retry(job.id, { verification:jobAction[2] === 'verify' }); worker.kick(); return json(res, 202, result); }
       if (!job.output_dir) throw new Error('任务尚未生成文件。');
       openFolder(job.output_dir); return json(res, 200, { ok: true });
     }

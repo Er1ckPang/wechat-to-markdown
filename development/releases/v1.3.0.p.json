@@ -15,16 +15,18 @@
     "wide SVG and code reflow",
     "animated-image native-pixel first-frame capture",
     "home summary and active jobs",
-    "10000-record filtered pagination"
+    "10000-record filtered pagination",
+    "WeChat verification resource and state recovery",
+    "offline MHTML / embedded HTML browser import"
   ],
   "localValidation": {
-    "localTestsPassed": 30,
+    "localTestsPassed": 34,
     "upstreamTestsPassed": 45,
     "upstreamBuild": "passed"
   },
   "liveValidation": {
     "attentionArticle": "completed; 14 offline images; both PNG coverage checks passed",
-    "migrationExample": "new link detected and followed; destination requires WeChat verification in current network",
+    "migrationExample": "migration followed; captcha resources now load; destination verification still not completed; ordinary browser import available",
     "inferenceArticle": "completed; 28 offline images; 3 original GIFs preserved; mobile1296x64710 and desktop2154x52617 complete with zero overlap difference",
     "recordsUI": "105 existing records; 390/768/1100px home and record views; invalid filter and page jump passed; no script errors"
   },

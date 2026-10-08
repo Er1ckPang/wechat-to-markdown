@@ -2,7 +2,7 @@ import { siteNames } from './urls.mjs';
 export const MAX_RECORDS = 10000;
 export const STATUS_NAMES = { pending:'等待保存', processing:'正在保存', completed:'保存完成', partial:'已保存 · 有提示', invalid:'链接已失效', failed:'保存失败', needs_manual:'需要人工确认' };
 export const SITE_NAMES = siteNames;
-export const SOURCE_NAMES = { manual:'手动保存', feishu:'飞书消息', 'message-test':'消息入口测试', 'user-example':'示例文章' };
+export const SOURCE_NAMES = { manual:'手动保存', feishu:'飞书消息', 'message-test':'消息入口测试', 'user-example':'示例文章', 'browser-import':'普通浏览器导入' };
 const site = `COALESCE(NULLIF(json_extract(metadata,'$.site'),''),CASE WHEN url LIKE 'https://mp.weixin.qq.com/%' THEN 'wechat' WHEN url LIKE 'https://%.zhihu.com/%' OR url LIKE 'https://zhihu.com/%' THEN 'zhihu' WHEN url LIKE 'https://%.csdn.net/%' THEN 'csdn' WHEN url LIKE 'https://%.cnblogs.com/%' OR url LIKE 'https://cnblogs.com/%' THEN 'cnblogs' ELSE 'web' END)`;
 const account = `COALESCE(NULLIF(json_extract(metadata,'$.account'),''),NULLIF(json_extract(metadata,'$.author'),''),'')`;
 function integer(value, fallback, min, max, name) {
@@ -21,7 +21,7 @@ function date(value, end = false) {
 export function compactJob(job) {
   if (!job.metadata) return job;
   const metadata = {};
-  for (const key of ['site','site_name','account','author','tool_version','format_version','file_names','migrations','resolved_url','warnings','markdown_viewer','image_gallery','html_files','screenshot_viewer','screenshots']) {
+  for (const key of ['site','site_name','account','author','tool_version','format_version','file_names','migrations','resolved_url','warnings','requires_verification','browser_import','markdown_viewer','image_gallery','html_files','screenshot_viewer','screenshots']) {
     if (job.metadata[key] !== undefined) metadata[key] = job.metadata[key];
   }
   return { ...job, metadata };

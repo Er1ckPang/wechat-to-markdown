@@ -7,6 +7,7 @@
 <nav class="tabs" aria-label="功能"><button data-tab="save" class="active">手动保存</button><button data-tab="feishu">飞书自动保存</button><button data-tab="settings">保存设置</button></nav>
 <section id="tab-save" class="tab-panel">
 <div class="card input-card"><label for="links">文章链接：公众号、知乎、CSDN、博客园等</label><textarea id="links" rows="3" placeholder="粘贴单篇文章或知乎回答链接&#10;也可以粘贴一段含链接的消息，或一次提交多个网站的文章。"></textarea><div class="input-footer"><span>自动跳过已保存的文章，每次最多 100 个不同链接。<a href="/sites-guide.html" target="_blank">支持范围 ↗</a></span><button id="save" class="primary">保存文章 <span>→</span></button></div></div>
+<details id="browser-import" class="card"><summary>采集浏览器验证超时？从普通浏览器导入</summary><p>先在日常使用的 Edge / Chrome 中正常打开文章，滚动到底部加载图片，再保存为“网页，单个文件”（MHTML）。也可以导入 SingleFile 扩展保存的内嵌 HTML。工具从文件生成 MD、内嵌 HTML 和两张长图，不再访问微信验证服务。</p><p class="note">浏览器也打不开正文时，需要先解决该网站的访问问题。普通“完整网页”保存产生的资源文件夹不支持直接导入。<a href="/guide.html#browser-import" target="_blank">详细步骤 ↗</a></p><form id="import-form" class="form-grid"><label class="wide">实际保存的文章链接（迁移文章填新链接）<input id="import-url" type="url" required></label><label class="wide">选择单个网页文件（最多 64 MB）<input id="import-file" type="file" accept=".mhtml,.mht,.html,.htm" required></label><p id="import-note" class="wide note"></p><div class="wide form-actions"><button type="submit" class="primary">导入并生成归档</button></div></form></details>
 </section>
 <section id="tab-feishu" class="tab-panel" hidden>
 <div class="card"><div class="card-heading"><div><h2>发给飞书机器人，自动保存</h2><p>使用飞书自建应用长连接；电脑联网并保持工具运行即可。</p></div><span class="badge" id="feishu-state">尚未配置</span></div>

@@ -34,7 +34,9 @@ export class Worker {
       const job = this.store.claim(candidate.id);
       if (!job) continue;
       this.active.set(job.id, job); this.hostReady.set(host, this.now() + this.startGap);
-      this.process(job, structuredClone(this.getConfig()), host);
+      const config = structuredClone(this.getConfig());
+      if (job.metadata?.verification_requested) config.showBrowser = true;
+      this.process(job, config, host);
     }
     if (this.active.size < limit && earliest < Infinity) this.wakeTimer = setTimeout(() => this.kick(), Math.max(1, earliest - this.now()));
   }
@@ -49,7 +51,7 @@ export class Worker {
       await this.logFailure(job, error, failedStage).catch(() => {});
       this.store.update(job.id, { status: invalid ? 'invalid' : error instanceof NeedsManualError ? 'needs_manual' : 'failed',
         stage: invalid ? '文章链接已失效' : '保存未完成', error: friendlyError(error),
-        metadata: { ...error.details, failure_stage: failedStage, link_state: invalid ? 'invalid' : error.details?.link_state || 'unknown' } });
+        metadata: { ...(job.metadata?.browser_import ? {browser_import:job.metadata.browser_import,browser_import_url:job.metadata.browser_import_url,migrations:job.metadata.migrations} : {}),...error.details, failure_stage: failedStage, link_state: invalid ? 'invalid' : error.details?.link_state || 'unknown' } });
     } finally { this.active.delete(job.id); this.kick(); }
   }
   stop() { this.stopped = true; clearInterval(this.timer); clearTimeout(this.wakeTimer); }

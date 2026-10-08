@@ -21,7 +21,7 @@ export function inspectLinkState({ platform, httpStatus = 200 }) {
   }
   if (httpStatus === 404 || httpStatus === 410) return { state: 'invalid', reason: httpStatus === 410 ? 'gone' : 'not_found', message: `文章链接已失效（HTTP ${httpStatus}）。` };
   if (httpStatus === 429 || /访问(?:过于|太)频繁|操作(?:过于|太)频繁|请求过于频繁|too many requests/i.test(message) && text.length < 2000) return { state: 'throttled', message: '网站暂时限制访问频率，请稍后重试。' };
-  if (/环境异常|完成验证|安全验证|验证码/.test(message) && text.length < 2000) return { state: 'unknown' };
+  if (platform === 'wechat' && (/^\/mp\/(?:wappoc_appmsgcaptcha|verify)(?:\/|$)/.test(location.pathname) || /环境异常|完成验证|安全验证|验证码/.test(message) && text.length < 2000)) return { state:'verification', message:'微信要求访问验证，文章链接未失效。' };
   if (platform === 'wechat') {
     const errors = [
       ['deleted', /(?:该|此)?(?:内容|文章)已被(?:发布者|作者)删除|(?:该|此)?(?:内容|文章)已(?:被)?删除/],
@@ -55,15 +55,49 @@ export async function evaluateStable(page, callback, argument) {
   }
 }
 
+export async function waitForReadableArticle(page, site, config, details, onStage = () => {}, httpStatus = 200) {
+  try {
+  let info = await evaluateStable(page, inspectArticlePage, site), announced = false;
+  const deadline = Date.now() + (config.showBrowser ? 90000 : 12000);
+  const verificationError = timedOut => {
+    const error = new NeedsManualError(`${details.migrations?.length ? '公众号已迁移，' : ''}${timedOut ? '微信验证未在90秒内完成。' : '目标文章需要微信访问验证。'}请点击“打开浏览器验证并继续保存”，在弹出的采集浏览器中完成验证，工具会自动继续保存。未保存验证页面。`);
+    error.details = { ...details, requires_verification:true, site:'wechat' }; return error;
+  };
+  while (!info.ready) {
+    const state = await evaluateStable(page, inspectLinkState, { platform:site.platform, httpStatus });
+    if (state.state === 'invalid') throw new InvalidArticleError(state.message, { ...details, reason:state.reason });
+    if (state.state === 'throttled') { const error = new NeedsManualError(state.message); error.retryAfterMs = 60000; error.details = details; throw error; }
+    if (state.state === 'verification') {
+      details.requires_verification = true;
+      if (!config.showBrowser) throw verificationError(false);
+      if (!announced) { onStage('等待在采集浏览器中完成微信验证 · 最多90秒，验证后自动继续保存'); announced = true; }
+    }
+    if (Date.now() >= deadline) break;
+    await page.waitForTimeout(500); info = await evaluateStable(page, inspectArticlePage, site);
+  }
+  if (!info.ready) {
+    if (details.requires_verification) throw verificationError(true);
+    throw new NeedsManualError(`无法读取${site.label}的单篇文章正文。页面可能需要登录、验证或没有可识别的文章。可启用“显示采集浏览器”后重试；不保存登录或验证页面。`);
+  }
+  return info;
+  } catch (error) {
+    if (details.requires_verification && /Target (?:page, context or browser|closed)|has been closed|Browser closed/i.test(error.message)) {
+      const manual = new NeedsManualError('微信验证窗口已关闭，保存未完成。可以从普通浏览器导入已正常打开的文章，或稍后再次验证。未保存验证页面。');
+      manual.details = { ...details, requires_verification:true, site:'wechat' }; throw manual;
+    }
+    throw error;
+  }
+}
+
 export async function resolveArticleLink(page, sourceUrl, site, config, onStage, options = {}) {
   const migrations = [], visited = new Set();
-  let current = sourceUrl, response;
+  let current = sourceUrl, response, referer;
   const identity = url => options.fixtureOrigin ? new URL(url).href.replace(/#.*$/, '') : articleKey(url);
   for (let hop = 0; hop <= 5; hop++) {
     const key = identity(current);
     if (visited.has(key)) throw new NeedsManualError('公众号迁移链接形成循环，已停止跳转，请人工确认。');
     visited.add(key);
-    response = await page.goto(current, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(async error => {
+    response = await page.goto(current, { waitUntil: 'domcontentloaded', timeout: 45000, ...(referer ? { referer } : {}) }).catch(async error => {
       if (!(await evaluateStable(page, inspectArticlePage, site)).ready) throw error;
     });
     let state = await evaluateStable(page, inspectLinkState, { platform: site.platform, httpStatus: response?.status() || 200 });
@@ -73,12 +107,12 @@ export async function resolveArticleLink(page, sourceUrl, site, config, onStage,
     }
     if (state.state === 'invalid') throw new InvalidArticleError(state.message, { reason: state.reason, http_status: response?.status(), original_url: sourceUrl, resolved_url: page.url(), migrations });
     if (state.state === 'throttled') { const error = new NeedsManualError(state.message); error.retryAfterMs = 60000; throw error; }
-    if (state.state !== 'migrated') return { response, migrations };
+    if (state.state !== 'migrated') return { response, migrations, state };
     if (!state.target) throw new NeedsManualError('已识别公众号迁移提示，但页面没有提供新的文章链接，请人工确认。');
     if (hop === 5) throw new NeedsManualError('公众号迁移超过 5 次，已停止跳转，请人工确认。');
     const target = migrationTarget(state.target, page.url(), options.fixtureOrigin);
     migrations.push({ from: page.url(), to: target, type: 'wechat_account_migration' });
     onStage(`公众号已迁移，正在打开新文章（第 ${migrations.length} 次）`);
-    current = target;
+    referer = page.url(); current = target;
   }
 }

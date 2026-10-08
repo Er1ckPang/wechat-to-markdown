@@ -59,6 +59,15 @@ export class Store {
     try { const results = urls.map(url => this.enqueue(url, 'manual', '', force)); this.db.exec('COMMIT'); return results; }
     catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
+  enqueueImport(url, descriptor, jobId = '') {
+    url = articleUrl(url);
+    const old = jobId ? this.get(jobId) : null;
+    if (jobId && (!old || !['failed','needs_manual'].includes(old.status))) throw new Error('请选择失败或需要人工确认的任务，或不选择旧任务直接导入。');
+    if (old && articleKey(old.metadata?.resolved_url || old.url) !== articleKey(url)) throw new Error('导入链接与这个任务的目标文章不同。迁移文章请使用记录中的新链接。');
+    const job = old || this.enqueue(url,'browser-import','',true).job;
+    return this.update(job.id,{status:'pending',stage:'准备导入普通浏览器保存的网页',error:null,
+      metadata:{...(old?.metadata || {}),verification_requested:false,browser_import:descriptor,browser_import_url:url}});
+  }
   list(limit = 300) { return this.db.prepare('SELECT * FROM jobs ORDER BY created_at DESC, rowid DESC LIMIT ?').all(limit).map(row => this.decode(row)); }
   records(filters = {}) { return queryRecords(this, filters); }
   active() { return this.db.prepare("SELECT * FROM jobs WHERE status IN ('processing','pending') ORDER BY CASE status WHEN 'processing' THEN 0 ELSE 1 END,created_at,rowid LIMIT 12").all().map(row=>compactJob(this.decode(row))); }
@@ -74,11 +83,14 @@ export class Store {
       .run(...entries.map(([key, value]) => key === 'metadata' ? JSON.stringify(value) : value ?? null), id);
     return this.get(id);
   }
-  retry(id) {
+  retry(id, { verification = false } = {}) {
     const job = this.get(id);
     if (!job) throw new Error('任务不存在。');
     if (['pending', 'processing'].includes(job.status)) throw new Error('这个任务正在等待或保存中。');
-    return this.update(id, { status: 'pending', stage: '准备重新保存', error: null, ...(job.status === 'invalid' ? { metadata: null } : {}) });
+    if (verification && (!['needs_manual','failed'].includes(job.status) || !job.metadata?.requires_verification)) throw new Error('这个任务不需要微信访问验证。');
+    const metadata = job.status === 'invalid' ? null : job.metadata ? { ...job.metadata } : null;
+    if (metadata) { delete metadata.verification_requested; if (verification) metadata.verification_requested = true; }
+    return this.update(id, { status: 'pending', stage: verification ? '准备打开微信验证浏览器' : '准备重新保存', error: null, metadata });
   }
   close() { this.db.close(); }
 }
