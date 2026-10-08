@@ -1770,3 +1770,5 @@ MHTML将内置CSS序列化为CID样式表链接，普通HTTP页面回放时不�
 重启当前服务后，沿用用户原MHTML和原导入任务重试，completed，无MD缺图和页面资源提示。5张原图与MHTML MIME原字节逐一相等；HTML断网5张图片全部显示、可打开原图，无外部图片／样式；手机和电脑PNG均覆盖全部行，最大接缝差异0。未重新打开微信验证码窗口，未修改并发4／showBrowser:false配置。私有文件、URL和诊断证据仅保存在本机logs及data，不上传Git。
 
 新增SINGLEFILE_GUIDE.md及singlefile-guide.html，主指南和README链接可直接进入。核对官方仓库、FAQ、当前选项界面及中英文标签，提供Edge／Chrome安装入口、普通HTML格式、延迟加载、图片缩小系数1、取消重复图片分组、保留图片／CSS／字体、防盗链Referer排障、断网检查和导入步骤。明确工具只能导入源文件已有资源，MD为可编辑结构，HTML保存静态样式；原MHTML文件可以直接重新保存，不要求用户重做文件。
+
+最终修复代码 4587642abc640bca67ce6216e67f9d2f1ca83b7e 的 Windows、Apple Silicon Mac、Intel Mac 原生验证全部成功，各完整35项，[Actions run 37767731380](https://github.com/Er1ckPang/wechat-to-markdown/actions/runs/37767731380)。本机最终完整35项也通过，指南在390／1100宽度无溢出或页面错误。源代码压缩包更新为本次HEAD，旧源码ZIP以提交5cc63ad命名移入outputs/history/；实际用户MHTML和归档仍仅在本机。

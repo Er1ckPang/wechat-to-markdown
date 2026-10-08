@@ -35,11 +35,30 @@
   },
   "nativeValidation": {
     "testsPerPlatform": 35,
-    "codeCommit": null,
-    "status": "pending",
-    "jobs": [],
-    "runId": null,
-    "url": null
+    "codeCommit": "4587642abc640bca67ce6216e67f9d2f1ca83b7e",
+    "status": "passed",
+    "jobs": [
+      {
+        "id": 113279377531,
+        "name": "macos-15-intel",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 113279377844,
+        "name": "windows-latest",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 113279377951,
+        "name": "macos-15",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "runId": 37767731380,
+    "url": "https://github.com/Er1ckPang/wechat-to-markdown/actions/runs/37767731380"
   },
   "privateRecords": "local-archive/logs/failure-analysis/ and local-archive/data/; excluded from Git and source ZIP",
   "recordQuery": {
