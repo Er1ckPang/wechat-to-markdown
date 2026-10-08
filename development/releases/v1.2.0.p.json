@@ -21,7 +21,12 @@
   "nativeValidation": {
     "workflow": "Local archive cross-platform",
     "runners": ["windows-latest", "macos-15", "macos-15-intel"],
-    "results": "See the workflow run for this branch"
+    "sourceCommit": "bbf8be78a20644f7a0527cbd0146c866dcc3e5bc",
+    "runUrl": "https://github.com/Er1ckPang/wechat-to-markdown/actions/runs/37717829085",
+    "completedAt": "2026-10-08T02:28:54Z",
+    "conclusion": "success",
+    "results": {"windows-latest": "success", "macos-15": "success", "macos-15-intel": "success"}
   },
+  "migrationValidation": {"recordsPreserved": 8, "articleDirectoriesPreserved": 9, "articleFilesSha256Verified": 238, "servedLocalImages": 171},
   "sourcePackageExcludes": ["personal configuration", "credentials", "SQLite databases", "real articles", "logs", "node_modules"]
 }
