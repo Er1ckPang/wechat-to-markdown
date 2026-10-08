@@ -14,7 +14,9 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(check) { for (let i=0;i<500;i++) { if(check())return;await wait(5); } throw Error('等待测试条件超时'); }
 async function queue(t) {
   const dir=await mkdtemp(path.join(os.tmpdir(),'wx2md-worker-'));const store=new Store(path.join(dir,'jobs.sqlite'));
-  t.after(async()=>{store.close();if(path.dirname(dir)===os.tmpdir()&&path.basename(dir).startsWith('wx2md-worker-'))await rm(dir,{recursive:true,force:true});});return store;
+  store.cleanupWorkers=[];
+  // Stop every scheduler before closing SQLite, including queued immediates.
+  t.after(async()=>{store.cleanupWorkers.forEach(worker=>worker.stop());store.close();if(path.dirname(dir)===os.tmpdir()&&path.basename(dir).startsWith('wx2md-worker-'))await rm(dir,{recursive:true,force:true});});return store;
 }
 const result={status:'completed',title:'测试',outputDir:null,metadata:{link_state:'available'}};
 
@@ -42,13 +44,13 @@ test('并发队列100篇恰好处理一次、同站最多2篇、长图互斥；�
       if(job.url.endsWith('/1'))throw new NeedsManualError('验证');return result;
     }finally{active--;hosts.set(host,hosts.get(host)-1);}
   }});
-  t.after(()=>worker.stop());worker.start();worker.kick();worker.run();
+  store.cleanupWorkers.push(worker);worker.start();worker.kick();worker.run();
   await until(()=>seen.size===100&&!worker.busy);assert.equal(max,4);assert.equal(maxCaptures,1);
   assert.deepEqual(store.stats(),{completed:98,invalid:1,needs_manual:1});assert.ok(store.list().every(j=>j.attempts===1));
   const invalid=store.list().find(j=>j.status==='invalid');assert.equal(invalid.metadata.link_state,'invalid');
   store.retry(invalid.id);assert.equal(store.get(invalid.id).metadata,null);worker.stop();
   // A lower setting drains already-running work and applies to subsequent starts.
-  const second=new Worker(store,()=>config,{startGap:0,archive:async()=>{await wait(20);return result;}});t.after(()=>second.stop());
+  const second=new Worker(store,()=>config,{startGap:0,archive:async()=>{await wait(20);return result;}});store.cleanupWorkers.push(second);
   store.enqueueBatch(Array.from({length:6},(_,i)=>`https://other${i}.example.com/a`));second.run();assert.equal(second.status().active,4);
   config={concurrency:1};await until(()=>second.status().active===1);assert.equal(second.status().concurrency,1);
   await until(()=>!second.busy&&store.pending().length===0);
@@ -58,7 +60,7 @@ test('限流只暂停同站新任务，其他网站继续保存；停止不领�
   const store=await queue(t);let time=Date.now();const calls=[];store.enqueueBatch(['https://mp.weixin.qq.com/s/a','https://mp.weixin.qq.com/s/b','https://example.com/article']);
   const worker=new Worker(store,()=>({concurrency:2}),{now:()=>time,startGap:1,archive:async job=>{
     calls.push(job.url);if(job.url.endsWith('/a')){const error=new NeedsManualError('限流');error.retryAfterMs=60000;throw error;}return result;
-  }});t.after(()=>worker.stop());worker.run();await until(()=>!worker.busy);
+  }});store.cleanupWorkers.push(worker);worker.run();await until(()=>!worker.busy);
   assert.equal(store.stats().pending,1);assert.ok(calls.includes('https://example.com/article'));assert.equal(worker.status().pausedHosts.length,1);
   time+=60001;worker.run();await until(()=>!worker.busy);assert.equal(store.pending().length,0);
   worker.stop();store.enqueueBatch(['https://mp.weixin.qq.com/s/c']);worker.run();assert.equal(store.pending().length,1);
