@@ -41,6 +41,8 @@ export function renderJobs(jobs, { container, count, empty, api, refresh, onErro
     }
     if (['needs_manual','failed'].includes(job.status) && job.metadata?.requires_verification) {
       actions.append(actionButton('打开浏览器验证并继续保存', () => api(`/api/jobs/${job.id}/verify`, {})));
+    }
+    if (['needs_manual','failed'].includes(job.status)) {
       const imported = element('a','从普通浏览器导入'); imported.href = `/?importJob=${job.id}#browser-import`; actions.append(imported);
     }
     if (!['pending', 'processing'].includes(job.status)) actions.append(actionButton('重新保存', () => api(`/api/jobs/${job.id}/retry`, {})));

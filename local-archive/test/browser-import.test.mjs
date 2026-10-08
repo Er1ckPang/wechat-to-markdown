@@ -38,6 +38,9 @@ test('MHTML 原图无损离线导入，生成全部归档并保留旧任务迁�
     assert.match(await readFile(path.join(result.outputDir,result.metadata.file_names.markdown),'utf8'),/images\/001.gif/);
     assert.match(await readFile(path.join(result.outputDir,result.metadata.file_names.html),'utf8'),/data:image\/gif;base64/);
     for(const profile of Object.values(result.metadata.screenshot_profiles)){assert.equal(profile.check.complete,true);assert.equal(profile.check.maxOverlapDifference,0);}
+    store.update(job.id,{status:result.status,metadata:result.metadata,output_dir:result.outputDir});
+    const retry=store.retry(job.id),repeated=await archiveArticle(retry,{archiveDir:path.join(f.temp,'archives'),screenshotScale:1},()=>{},{importDirectory:f.directory});
+    assert.equal(repeated.status,'completed');assert.equal(repeated.metadata.resolved_url,source);assert.deepEqual(repeated.metadata.migrations,migrations);assert.equal((await readFile(path.join(repeated.outputDir,'images/001.gif'))).equals(gif),true);
   } finally {store?.close();await browser.close().catch(()=>{});await f.cleanup();}
 });
 
@@ -68,5 +71,3 @@ test('导入文件大小、类型、空内容和内容变化校验',async()=>{
     browser=await launchBrowser();await assert.rejects(readBrowserImport(browser,descriptor,source,f.directory),/已发生变化/);
   } finally {await browser?.close();await f.cleanup();}
 });
-
-

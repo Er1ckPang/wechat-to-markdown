@@ -60,7 +60,7 @@ async function loadImages(page) {
 export async function archiveArticle(job, config, onStage = () => {}, testOptions = {}) {
   // fixtureOrigin is injectable only through tests, never through the public HTTP API.
   const fixtureOrigin = testOptions.fixtureOrigin;
-  const sourceUrl = fixtureOrigin ? job.url : articleUrl(job.metadata?.browser_import_url || job.url);
+  const sourceUrl = fixtureOrigin ? job.url : articleUrl(job.metadata?.browser_import ? job.metadata.browser_import_url || job.metadata.resolved_url || job.url : job.url);
   let site = fixtureOrigin ? testOptions.site || { platform: 'wechat', label: '微信公众号', kind: 'article' } : articleSite(sourceUrl);
   const allowed = createResourcePolicy(site.platform, { fixtureOrigin });
   const captureScale = [1, 2, 3, 4].includes(Number(config.screenshotScale)) ? Number(config.screenshotScale) : 3;
@@ -316,7 +316,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       site: site.platform, site_name: site.label, article_kind: site.kind, extraction: article.extraction,
       original_url: job.url, resolved_url: article.sourceUrl, saved_at: savedAt.toISOString(), timezone: 'Asia/Shanghai',
       link_state: migrations.length ? 'migrated' : 'available', migrations,
-      ...(imported ? {browser_import:imported.provenance} : {}),
+      ...(imported ? {browser_import:{...job.metadata.browser_import,...imported.provenance}} : {}),
       ...(linkDetails.requires_verification ? { access_verification:{required:true,completed:true,method:'normal_browser_verification'} } : {}),
       source: job.source || 'manual', browser: browser.version(), platform: process.platform,
       file_names: fileNames, files: fileInfo, screenshots: screenshotFiles, screenshot_scale: captureScale,
