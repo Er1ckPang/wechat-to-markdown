@@ -1683,3 +1683,5 @@ MAC_GUIDE.md 是指南源文件，build:guides 生成可断网打开的 mac-guid
 新增 GitHub Actions 工作流，矩阵为 windows-latest、macos-15（Apple Silicon）、macos-15-intel。运行锁定依赖安装、浏览器安装、完整归档和截图回归、Mac 原生首次安装与后台生命周期。实际结果以 Actions 为准，不将 Windows 模拟或语法检查称为用户 Mac 实测。
 
 Windows 验证：本地 10 项（原 6 项加运行模块 4 项）通过，上游 45 项与构建通过。版本目录迁至 wx2md-local-v1.1.0.p，任务与文章绝对路径更新。迁移中的 Windows 依赖 junction 无法直接随目录移动，恢复目录后按锁文件重新安装依赖；文章与配置未改写内容。8 条任务、9 个文章目录、238 个文章文件、171 个 HTTP 图片引用已复核。旧源码 ZIP 移入 history，原基线 tag 保留。
+
+原生验证于 2026-10-08 09:51（北京时间）完成：代码提交 bc1b20ad23554fc2d609e5025cacad346f9c7fde 在 Windows、Apple Silicon Mac 与 Intel Mac 的三项任务全部通过。两种 Mac 均完成首次安装、10 项归档与运行测试、构建、环境诊断、重复启动与重复停止。结果见 [Actions run 37714715001](https://github.com/Er1ckPang/wechat-to-markdown/actions/runs/37714715001)；发布清单记录该代码提交与实际结果，后续补充验证记录的提交只修改文档。

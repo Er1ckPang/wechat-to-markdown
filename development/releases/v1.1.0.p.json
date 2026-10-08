@@ -27,7 +27,15 @@
       "macos-15",
       "macos-15-intel"
     ],
-    "results": "See the workflow run for this branch at https://github.com/Er1ckPang/wechat-to-markdown/actions/workflows/local-archive.yml"
+    "sourceCommit": "bc1b20ad23554fc2d609e5025cacad346f9c7fde",
+    "runUrl": "https://github.com/Er1ckPang/wechat-to-markdown/actions/runs/37714715001",
+    "completedAt": "2026-10-08T01:51:06Z",
+    "conclusion": "success",
+    "results": {
+      "windows-latest": "success",
+      "macos-15": "success",
+      "macos-15-intel": "success"
+    }
   },
   "sourcePackageExcludes": [
     "personal configuration",
