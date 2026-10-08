@@ -28,10 +28,35 @@
     "attentionArticle": "completed; 14 offline images; both PNG coverage checks passed",
     "migrationExample": "migration followed; captcha resources now load; destination verification still not completed; ordinary browser import available",
     "inferenceArticle": "completed; 28 offline images; 3 original GIFs preserved; mobile1296x64710 and desktop2154x52617 complete with zero overlap difference",
-    "recordsUI": "105 existing records; 390/768/1100px home and record views; invalid filter and page jump passed; no script errors"
+    "recordsUI": "105 existing records; 390/768/1100px home and record views; invalid filter and page jump passed; no script errors",
+    "browserImport": "authored MHTML and embedded HTML complete; original GIF bytes equal; dual screenshots complete; production upload and migrated-task retry passed; source scripts/network/local-file resources blocked"
   },
   "nativeValidation": {
-    "status": "pending"
+    "testsPerPlatform": 34,
+    "codeCommit": "aa7e4cd5418135eb8f0511da0e47d9f75c0bd97b",
+    "status": "passed",
+    "jobs": [
+      {
+        "id": 113236436322,
+        "name": "macos-15-intel",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 113236436463,
+        "name": "macos-15",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 113236436547,
+        "name": "windows-latest",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "runId": 37754600209,
+    "url": "https://github.com/Er1ckPang/wechat-to-markdown/actions/runs/37754600209"
   },
   "privateRecords": "local-archive/logs/failure-analysis/ and local-archive/data/; excluded from Git and source ZIP",
   "recordQuery": {

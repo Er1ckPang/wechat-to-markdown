@@ -1752,3 +1752,9 @@ browser-import.mjs 使用 Chromium 原生 MHTML 解析、Page.getResourceTree / 
 自主编写 MHTML、内嵌 HTML 验证全部输出、原GIF字节、双长图完整及零接缝差异；拒绝来源不同、验证页、本地file资源、超限／空／变更文件。真实浏览器UI测试上传文件和继续原任务；验证窗口关闭与模拟正常验证导航均有回归。发现MD副本替换相对图片路径时会触发多余网站请求，改用DOMParser惰性文档，避免向网站请求 images/001.gif。
 
 最终Windows本机完整34项通过；上游45项与构建通过。原生 Windows / Apple Silicon / Intel Mac 以发布清单最终实际 Actions 结果为准。真实微信验证码持续超时仍未完成验收；用户将后续手动处理。
+
+最终代码 aa7e4cd5418135eb8f0511da0e47d9f75c0bd97b 的原生验证已完成：Windows、Apple Silicon Mac、Intel Mac 三项全部成功，每个平台完整34项；Mac安装、诊断、后台启动／重复启动／停止也通过。[Actions run 37754600209](https://github.com/Er1ckPang/wechat-to-markdown/actions/runs/37754600209)。本机完整34项后，最后的导入重试调整又通过6项相关回归；根目录45项和TypeScript／Vite构建再次通过。当前服务载入最终代码，保留用户并发4与showBrowser:false，飞书重新连接正常。
+
+独立生产接口验证：匿名403、错误类型400、原始文件上传202，生成completed；再次保存completed；原GIF逐字节一致，内嵌HTML断网零缺图，手机和电脑PNG全行覆盖且接缝差异0。实际首页390／768／1100宽度无溢出。旧两条TargetClosed记录保留原始诊断备份后改为needs_manual，未新增采集任务；真实迁移记录的导入入口预填新链接、保留迁移链、没有打开验证窗口。私有原始证据在logs/import-api-probe和logs/migration-probe，源码ZIP和Git不含这些内容。
+
+保留唯一当前开发目录wx2md-local-v1.3.0.p，v1.2.0.p及更早版本仅保留历史压缩包；v1.0.0.p tag保持不变。源码包采用git archive生成，不包含data、archives、logs、依赖安装目录或生成dist。实际文章的微信验证仍交由用户后续手动处理；普通浏览器导入是备用路径，不声称真实验证码已通过。
