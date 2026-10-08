@@ -13,7 +13,7 @@ import { Worker } from '../src/worker.mjs';
 
 test('失效提示分类；验证码和限流不误判；正文引用删除或迁移提示仍为文章',async()=>{
   const browser=await launchBrowser();try{const page=await browser.newPage();
-    for(const [text,reason] of [['该内容已被发布者删除','deleted'],['链接已过期','expired'],['此内容涉嫌侵权，无法查看','copyright'],['该内容因违规无法查看','removed']]){
+    for(const [text,reason] of [['该内容已被发布者删除','deleted'],['链接已过期','expired'],['此内容涉嫌侵权，无法查看','copyright'],['该内容因违规无法查看','removed'],['此账号已自主注销，内容无法查看','account_removed']]){
       await page.setContent(`<div class="weui-msg"><h1>${text}</h1></div>`);const state=await page.evaluate(inspectLinkState,{platform:'wechat'});assert.equal(state.state,'invalid');assert.equal(state.reason,reason);
     }
     await page.setContent('<div class="weui-msg">环境异常，请完成验证，此内容无法查看</div>');assert.equal((await page.evaluate(inspectLinkState,{platform:'wechat'})).state,'unknown');

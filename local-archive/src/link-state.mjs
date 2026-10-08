@@ -27,8 +27,8 @@ export function inspectLinkState({ platform, httpStatus = 200 }) {
       ['deleted', /(?:该|此)?(?:内容|文章)已被(?:发布者|作者)删除|(?:该|此)?(?:内容|文章)已(?:被)?删除/],
       ['expired', /(?:链接|页面|文章)已(?:经)?(?:过期|失效)|链接无效/],
       ['copyright', /(?:内容|文章).{0,24}(?:涉嫌侵权|侵权投诉|侵犯.{0,12}著作权)/],
+      ['account_removed', /(?:公众号|账号)已(?:自主|被)?(?:注销|封禁)/],
       ['removed', /(?:内容|文章).{0,32}(?:违规|违反相关法律|违反相关规定|无法查看|已被屏蔽|已被下架)|原文不存在|文章不存在/],
-      ['account_removed', /(?:公众号|账号)已(?:被)?(?:注销|封禁)/]
     ];
     for (const [reason, pattern] of errors) if (pattern.test(message)) return { state: 'invalid', reason, message: `文章链接已失效：${message.slice(0, 240)}` };
   }
