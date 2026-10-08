@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mac 安装与启动指南 · wx2md Local</title><style>
 :root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f4ef;color:#243429;font:15px/1.85 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}main{max-width:940px;margin:auto;padding:35px 30px 70px}a{color:#276448}h1{font-size:30px;line-height:1.4}h2{margin-top:35px;font-size:22px}code{background:#e8eee4;border-radius:4px;padding:2px 5px;overflow-wrap:anywhere}pre{background:#223a2b;color:#eaf2e8;border-radius:8px;padding:18px;overflow:auto}pre code{background:none;overflow-wrap:normal;padding:0}table{width:100%;border-collapse:collapse;background:#fff}td,th{border:1px solid #dce3d9;text-align:left;padding:10px}th{background:#e9eee5}li{margin:9px 0}nav{display:flex;gap:20px;border-bottom:1px solid #dce3d9;padding-bottom:15px}@media(max-width:600px){main{padding:24px 18px}h1{font-size:25px}table{font-size:13px}}
-</style></head><body><main><nav><a href="guide.html">完整使用指南</a><a href="http://127.0.0.1:17880/">打开本地工具</a></nav><h1>Mac 环境安装与软件启动</h1>
-<p>适用版本：v1.1.0.p；特性分支：<code>feat/macos-support</code>。日期：2026-10-08。</p>
+</style><style>a{overflow-wrap:anywhere}table{table-layout:fixed;overflow-wrap:anywhere}nav{flex-wrap:wrap}@media(max-width:600px){td,th{padding:8px 6px}}</style></head><body><main><nav><a href="guide.html">完整使用指南</a><a href="mac-guide.html">Mac 安装</a><a href="sites-guide.html">支持的网站</a><a href="http://127.0.0.1:17880/">打开本地工具</a></nav><h1>Mac 环境安装与软件启动</h1>
+<p>适用版本：v1.2.0.p；特性分支：<code>feat/multi-site-archive</code>。日期：2026-10-08。</p>
 <p>支持 Apple Silicon（M 系列）和 Intel 64 位 Mac。系统至少 macOS 14 Sonoma，使用 Node.js 22.13+，建议安装 <strong>Node.js 24 LTS</strong>。这是当前 Playwright 的系统要求与本工具 SQLite 的运行要求。<a href="https://playwright.dev/docs/intro#system-requirements">Playwright 官方要求</a>、<a href="https://nodejs.org/en/download">Node.js 下载</a>。</p>
 <h2>1. 安装 Node.js</h2>
 <p>推荐打开 <a href="https://nodejs.org/en/download">Node.js 官方下载页</a>，选择 24 LTS、macOS 和 Installer（<code>.pkg</code>），按安装器提示完成。架构按“苹果菜单 → 关于本机”中的芯片选择：M 系列选择 ARM64，Intel 选择 x64。关闭并重新打开终端，检查：</p>
@@ -12,7 +12,7 @@ npm --version
 <p>已经使用 Homebrew 的用户也可以运行 <code>brew install node@24</code>。启动文件会查找 Apple Silicon 的 <code>/opt/homebrew</code> 和 Intel 的 <code>/usr/local</code> 路径，不要求修改系统配置。Homebrew 自身的系统兼容范围可能更窄，旧系统或 Intel Mac 优先使用 Node 官方安装器。<a href="https://docs.brew.sh/Installation">Homebrew 官方安装说明</a>。</p>
 <p>如果 Node 通过 nvm 安装，先在可运行 <code>node --version</code> 的终端中按下方命令启动；Finder 的环境可能没有你的 nvm 路径。</p>
 <h2>2. 获取并解压工具</h2>
-<p>下载本次源码 ZIP，或在 <a href="https://github.com/Er1ckPang/wechat-to-markdown/tree/feat/macos-support">GitHub 特性分支</a> 点击 <strong>Code → Download ZIP</strong>。解压到你的个人目录，例如“文稿”中，找到其中的 <code>local-archive/</code> 文件夹。</p>
+<p>下载本次源码 ZIP，或在 <a href="https://github.com/Er1ckPang/wechat-to-markdown/tree/feat/multi-site-archive">GitHub 特性分支</a> 点击 <strong>Code → Download ZIP</strong>。解压到你的个人目录，例如“文稿”中，找到其中的 <code>local-archive/</code> 文件夹。</p>
 <p>不要把 Windows 的 <code>node_modules/</code> 复制到 Mac。安装入口会为当前 Mac 下载正确的依赖和浏览器。软件源码 ZIP 已排除文章、凭据和运行数据。</p>
 <h2>3. 首次安装</h2>
 <p>用终端进入 <code>local-archive/</code>。可以先输入 <code>cd </code>（末尾保留空格），再把该文件夹拖入终端，按回车。然后运行：</p>
@@ -25,7 +25,7 @@ bash install-mac.command
 <p>以后双击 <strong>start-mac.command</strong>，或在终端运行：</p>
 <pre><code class="language-sh">bash start-mac.command
 </code></pre>
-<p>网页会自动打开 <strong><a href="http://127.0.0.1:17880/">http://127.0.0.1:17880/</a></strong>。粘贴公众号文章链接，点击“保存文章”。默认写入 <code>local-archive/archives/</code>，也可在“保存设置”中改成你自己的目录。每篇仍是标题命名的 MD、内嵌 HTML、手机与电脑两张无损 PNG、metadata，以及 MD 的 <code>images/</code>。</p>
+<p>网页会自动打开 <strong><a href="http://127.0.0.1:17880/">http://127.0.0.1:17880/</a></strong>。粘贴公众号、知乎、CSDN、博客园等文章链接，点击“保存文章”。默认写入 <code>local-archive/archives/</code>，也可在“保存设置”中改成你自己的目录。每篇仍是标题命名的 MD、内嵌 HTML、手机与电脑两张无损 PNG、metadata，以及 MD 的 <code>images/</code>。</p>
 <p>后台启动后，关闭浏览器或启动终端窗口不会停止服务。再次启动会复用同目录、同版本的后台。若已经运行旧版或另一个目录，先在旧网页“保存设置 → 停止本地工具”中停止。</p>
 <p>停止软件可以双击 <strong>stop-mac.command</strong>，也可以在网页里停止。正在保存文章时会拒绝停止，等文章完成后重试。电脑睡眠或关闭服务后无法接收飞书消息；唤醒后检查连接状态，必要时重新连接。</p>
 <table>

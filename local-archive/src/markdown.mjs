@@ -45,7 +45,7 @@ function bodyConverter() {
 export function articleToMarkdown(article, savedAt = new Date()) {
   const turndown = bodyConverter();
   const metadata = { title: article.title, account: article.accountName || '', author: article.author || '',
-    published_at: article.publishTime || '', source: article.sourceUrl, platform: 'wechat', saved_at: savedAt.toISOString() };
+    published_at: article.publishTime || '', source: article.sourceUrl, platform: article.platform || 'wechat', saved_at: savedAt.toISOString() };
   const images = new Map();
   const body = turndown.turndown(article.html).trim().replace(/!\[([^\]\n]*)\]\((data:image\/[^)\s]+)\)/g, (_match, alt, src) => {
     if (!images.has(src)) images.set(src, `wx2md-image-${String(images.size+1).padStart(3,'0')}`);

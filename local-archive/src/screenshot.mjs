@@ -5,7 +5,7 @@ import { PngRows } from './png-stream.mjs';
 export async function prepareCapture(page, scale, warnings, options = {}) {
   await page.addStyleTag({ content: 'html,body{scroll-behavior:auto!important;scroll-snap-type:none!important}*{animation:none!important;transition:none!important;caret-color:transparent!important;scroll-snap-align:none!important;content-visibility:visible!important}::-webkit-scrollbar{display:none!important}' });
   return page.evaluate(async ({ scale, options }) => {
-    const content = document.querySelector('#js_content');
+    const content = document.querySelector('[data-wx2md-body], #js_content');
     let hiddenFloating = 0, flattenedSticky = 0, expandedOverflow = 0, fittedTables = 0;
     for (const element of [...document.querySelectorAll('body *')]) {
       const position = getComputedStyle(element).position;
@@ -19,6 +19,7 @@ export async function prepareCapture(page, scale, warnings, options = {}) {
       const style = document.createElement('style');
       style.textContent = '#js_content img{max-width:100%!important}#js_content pre{white-space:pre-wrap!important;overflow-wrap:anywhere!important;max-width:100%!important}#js_content [data-wx2md-fit-table]{table-layout:fixed!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}#js_content [data-wx2md-fit-table] :is(th,td){width:auto!important;min-width:0!important;max-width:none!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:normal!important;box-sizing:border-box!important}#js_content [data-wx2md-fit-table] :is(section,p,div,span){min-width:0!important;max-width:100%!important;white-space:normal!important;overflow-wrap:anywhere!important}';
       document.head.append(style);
+      style.textContent = style.textContent.replaceAll('#js_content', ':is(#js_content,[data-wx2md-body])');
       // Reflow wide tables at the chosen reading width. Do not extend the canvas
       // beyond the article column, or blank space would follow every paragraph.
       for (const table of content.querySelectorAll('table')) {
@@ -54,7 +55,7 @@ export async function prepareCapture(page, scale, warnings, options = {}) {
     if (options.fitToViewport && second.width > innerWidth) throw new Error('正文仍有超出阅读宽度的内容，无法生成完整的对应比例长图。请查看内嵌 HTML。');
     let crop = { left: 0, width: second.width };
     if (options.cropToArticle) {
-      const wrapper = content.closest('.rich_media_area_primary_inner') || content.closest('main');
+      const wrapper = content.closest('[data-wx2md-article]') || content.closest('.rich_media_area_primary_inner') || content.closest('main');
       const nodes = wrapper ? [wrapper] : [content, document.querySelector('#activity-name'), document.querySelector('#js_name')].filter(Boolean);
       const rects = nodes.map(node => node.getBoundingClientRect());
       const left = Math.max(0, Math.floor(Math.min(...rects.map(r => r.left)) - 20));

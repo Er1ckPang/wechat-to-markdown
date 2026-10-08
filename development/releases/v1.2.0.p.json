@@ -1,0 +1,27 @@
+{
+  "release": "v1.2.0.p",
+  "date": "2026-10-08",
+  "branch": "feat/multi-site-archive",
+  "baseBranch": "feat/macos-support",
+  "baseCommit": "833164274291ddaf48e200c5aa995b628cada2c7",
+  "npmVersion": "1.2.0-p",
+  "displayVersion": "1.2.0.p",
+  "sites": ["wechat", "zhihu", "csdn", "cnblogs", "web"],
+  "localValidation": {
+    "localTestsPassed": 19,
+    "upstreamTestsPassed": 45,
+    "upstreamBuild": "passed"
+  },
+  "liveValidation": {
+    "cnblogs": "completed; offline images and both PNG coverage checks passed",
+    "mdnGenericArticle": "completed; offline check and both PNG coverage checks passed",
+    "zhihu": "HTTP 403 in current network; manual confirmation status verified",
+    "csdn": "HTTP 403 in current network; manual confirmation status verified"
+  },
+  "nativeValidation": {
+    "workflow": "Local archive cross-platform",
+    "runners": ["windows-latest", "macos-15", "macos-15-intel"],
+    "results": "See the workflow run for this branch"
+  },
+  "sourcePackageExcludes": ["personal configuration", "credentials", "SQLite databases", "real articles", "logs", "node_modules"]
+}

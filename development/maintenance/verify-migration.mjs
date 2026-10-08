@@ -37,7 +37,7 @@ try{
  const page=await browser.newPage({viewport:{width:390,height:844}});page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base);await page.locator('#service-version').getByText(`正在运行 · v${version}`,{exact:true}).waitFor();
  await page.getByRole('button',{name:'保存设置',exact:true}).click();assert.equal(path.resolve(await page.locator('#runtime-root').textContent()),path.resolve(app));
- for(const url of [base+'/guide.html',base+'/mac-guide.html']){await page.goto(url);assert.ok((await page.locator('body').textContent()).includes(version));}
+ for(const url of [base+'/guide.html',base+'/mac-guide.html',base+'/sites-guide.html']){await page.goto(url);assert.ok((await page.locator('body').textContent()).includes(version));}
  assert.deepEqual(errors,[]);
 }finally{await browser.close();}
 const report={release:`v${version}`,displayVersion:health.version,packageVersion:packageInfo.version,recordsPreserved:status.jobs.length,migratedArticleDirectories:migration.articleDirectoriesCopied,migratedFilesVerified:migration.filesVerified,servedMarkdowns:mdChecks,servedLocalImages:imageChecks,metadataFileChecks:fileChecks,uiErrors:errors};

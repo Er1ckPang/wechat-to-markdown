@@ -3,7 +3,9 @@ export { launchBrowser } from './browser.mjs';
 import { mkdir, readFile, writeFile, rename, stat, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { articleUrl, resourceAllowed, safeName, hash } from './urls.mjs';
+import { articleUrl, articleSite, resourceAllowed, safeName, hash } from './urls.mjs';
+import { createResourcePolicy } from './network.mjs';
+import { inspectArticlePage, prepareArticlePage, expandPublicArticle } from './sites.mjs';
 import { extractArticle } from './extract.mjs';
 import { articleToMarkdown } from './markdown.mjs';
 import { linkLocalImages } from './html.mjs';
@@ -28,7 +30,7 @@ function imageExtension(bytes, type) {
 
 async function loadImages(page) {
   await page.evaluate(() => {
-    document.querySelectorAll('#js_content img').forEach(image => {
+    document.querySelectorAll('[data-wx2md-body] img, #js_content img').forEach(image => {
       const src = image.getAttribute('data-src');
       if (src && image.getAttribute('src') !== src) image.src = src;
       image.loading = 'eager';
@@ -44,7 +46,7 @@ async function loadImages(page) {
   }
   await page.evaluate(async () => {
     await Promise.race([
-      Promise.all([...document.querySelectorAll('#js_content img')].map(image => image.decode().catch(() => {}))),
+      Promise.all([...document.querySelectorAll('[data-wx2md-body] img, #js_content img')].map(image => image.decode().catch(() => {}))),
       new Promise(resolve => setTimeout(resolve, 18000))
     ]);
     await Promise.race([document.fonts.ready, new Promise(resolve => setTimeout(resolve, 6000))]);
@@ -57,25 +59,27 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
   // fixtureOrigin is injectable only through tests, never through the public HTTP API.
   const fixtureOrigin = testOptions.fixtureOrigin;
   const sourceUrl = fixtureOrigin ? job.url : articleUrl(job.url);
+  let site = fixtureOrigin ? testOptions.site || { platform: 'wechat', label: '微信公众号', kind: 'article' } : articleSite(sourceUrl);
+  const allowed = createResourcePolicy(site.platform, { fixtureOrigin });
   const captureScale = [1, 2, 3, 4].includes(Number(config.screenshotScale)) ? Number(config.screenshotScale) : 3;
   const browser = await launchBrowser(config);
   const warnings = []; const failedResources = new Set(); const failedImages = []; const auxiliaryRequests = new Set();
   let context, stageDirectory, finalDirectory;
   const maxTime = setTimeout(() => browser.close().catch(() => {}), 300000);
   try {
-    context = await browser.newContext({ viewport: { width: 432, height: 768 }, deviceScaleFactor: captureScale, locale: 'zh-CN', timezoneId: 'Asia/Shanghai', colorScheme: 'light', serviceWorkers: 'block' });
-    const page = await context.newPage();
+    context = await browser.newContext({ viewport: { width: site.platform === 'wechat' ? 432 : 1280, height: 768 }, deviceScaleFactor: captureScale, locale: 'zh-CN', timezoneId: 'Asia/Shanghai', colorScheme: 'light', serviceWorkers: 'block' });
+    let page = await context.newPage();
     const cache = new Map();
-    page.on('response', response => {
+    context.on('response', response => {
       const url = response.url();
       const type = response.headers()['content-type'] || '';
-      if (resourceAllowed(url, fixtureOrigin) && response.ok() && /image\/|text\/css|font\/|application\/(?:font|octet-stream)/.test(type)) {
-        cache.set(url, response.body().then(bytes => ({ bytes, type, status: response.status() })).catch(() => null));
+      if (resourceAllowed(url, fixtureOrigin, site.platform) && response.ok() && /image\/|text\/css|font\/|application\/(?:font|octet-stream)/.test(type)) {
+        cache.set(url, response.body().then(bytes => bytes.length <= 25 * 1024 * 1024 ? { bytes, type, status: response.status() } : null).catch(() => null));
       }
     });
     await context.route('**/*', async route => {
       const url = route.request().url();
-      if (resourceAllowed(url, fixtureOrigin)) await route.continue().catch(() => {});
+      if (await allowed(url)) await route.continue().catch(() => {});
       else {
         if (new URL(url).hostname === 'badjs.weixinbridge.com') auxiliaryRequests.add(url);
         else if (['image', 'stylesheet', 'font'].includes(route.request().resourceType())) failedResources.add(url);
@@ -83,27 +87,66 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       }
     });
     onStage('打开文章');
-    await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(async error => {
-      if (!(await page.locator('#js_content').count())) throw error;
+    const response = await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(async error => {
+      if (!(await page.evaluate(inspectArticlePage, site)).ready) throw error;
     });
-    try { await page.locator('#js_content').waitFor({ state: 'attached', timeout: config.showBrowser ? 90000 : 12000 }); }
-    catch {
-      throw new NeedsManualError('无法读取文章正文。请先在浏览器确认文章可访问；如需验证，可在设置中启用“显示采集浏览器”后重试。');
+    if (response && response.status() >= 400 && !config.showBrowser) {
+      throw new NeedsManualError(`${site.label}返回 HTTP ${response.status()}，未保存错误页面。请确认文章可访问，或启用“显示采集浏览器”后重试。`);
     }
+    if (!fixtureOrigin && site.platform === 'web') {
+      try {
+        const resolved = articleSite(page.url());
+        if (resolved.platform !== 'web') {
+          site = resolved;
+          await page.setViewportSize({ width: site.platform === 'wechat' ? 432 : 1280, height: 768 });
+        }
+      } catch { /* The body check below classifies login pages without saving them. */ }
+    }
+    if (await page.evaluate(expandPublicArticle, site)) await sleep(500);
+    let info = await page.evaluate(inspectArticlePage, site);
+    const deadline = Date.now() + (config.showBrowser ? 90000 : 12000);
+    while (!info.ready && Date.now() < deadline) { await sleep(500); info = await page.evaluate(inspectArticlePage, site); }
+    if (!info.ready) throw new NeedsManualError(`无法读取${site.label}的单篇文章正文。页面可能需要登录、验证或没有可识别的文章。可启用“显示采集浏览器”后重试；不保存登录或验证页面。`);
     if (!fixtureOrigin) {
-      try { articleUrl(page.url()); }
+      try {
+        const resolved = articleSite(articleUrl(page.url()));
+        if (site.platform !== 'web' && (resolved.platform !== site.platform || (site.itemId && resolved.itemId !== site.itemId))) throw new Error('不是同一篇文章');
+      }
       catch { throw new NeedsManualError('文章跳转到验证或登录页面，请人工确认后重试。'); }
     }
+    if (info.restricted) throw new NeedsManualError('页面有登录或付费正文限制。请先通过网站正常登录或授权，再在显示采集浏览器的模式下重试。');
+    if (info.collapsed) warnings.push('页面正文有折叠提示；请对照原文确认完整性。');
+    if (info.interactive) warnings.push('文章包含视频、音频或交互组件；保存的是可见静态内容。');
+    await page.evaluate(prepareArticlePage, { site, info });
     onStage('加载正文图片与排版');
     await loadImages(page);
-    const article = await page.evaluate(extractArticle);
+    const resolvedSourceUrl = page.url();
+    if (site.platform !== 'wechat') {
+      // Some sites replace built-in JS methods. Run the archive library in a fresh,
+      // script-free document while retaining the selected DOM, CSS and source base URL.
+      const snapshot = await page.evaluate(() => {
+        const doc = document.documentElement.cloneNode(true);
+        doc.querySelectorAll('script,iframe,base,meta[http-equiv="refresh" i],meta[http-equiv="content-security-policy" i],link[rel="modulepreload"],link[as="script"]').forEach(e => e.remove());
+        const base = document.createElement('base'); base.href = location.href;
+        doc.querySelector('head').prepend(base);
+        return '<!DOCTYPE html>' + doc.outerHTML;
+      });
+      const originalPage = page;
+      page = await context.newPage();
+      await page.setContent(snapshot, { waitUntil: 'load', timeout: 45000 });
+      await originalPage.close();
+      await loadImages(page);
+    }
+    const article = await page.evaluate(extractArticle, { site, info: { ...info, sourceUrl: resolvedSourceUrl } });
+    article.sourceUrl = resolvedSourceUrl;
     if (!article.bodyTextLength && !article.images.length) throw new NeedsManualError('文章正文为空，请确认链接仍可访问。');
     if (article.interactive) warnings.push('文章包含视频、音频或交互组件；保存的是可见静态内容。');
     if (article.unresolvedImages.length) warnings.push(`原页面有 ${article.unresolvedImages.length} 张正文图片未成功显示，长截图可能缺图。`);
     const savedAt = new Date();
-    const account = safeName(article.accountName || '未识别公众号', 35);
+    const account = safeName(article.accountName || site.label, 35);
     const directoryName = `${savedAt.toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' })}_${safeName(article.title, 55)}_${job.id.slice(0, 8)}`;
-    finalDirectory = path.join(path.resolve(config.archiveDir), account, directoryName);
+    finalDirectory = site.platform === 'wechat' ? path.join(path.resolve(config.archiveDir), account, directoryName)
+      : path.join(path.resolve(config.archiveDir), site.label, account, directoryName);
     const stagingRoot = path.join(path.resolve(config.archiveDir), '.staging');
     stageDirectory = path.join(stagingRoot, `${job.id}-${Date.now()}`);
     await mkdir(path.join(stageDirectory, 'images'), { recursive: true });
@@ -113,8 +156,8 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       mobile: `${titleStem}_手机.png`, desktop: `${titleStem}_电脑.png`, metadata: `${titleStem}_metadata.json` };
 
     async function getResource(input, redirects = 0) {
-      const url = new URL(input, page.url()).href;
-      if (!resourceAllowed(url, fixtureOrigin)) throw new Error('不支持的资源地址。');
+      const url = new URL(input, resolvedSourceUrl).href;
+      if (!(await allowed(url))) throw new Error('资源地址不可访问或指向非公网地址。');
       if (url.startsWith('data:')) {
         const match = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(url);
         if (!match) throw new Error('无效的内嵌资源。');
@@ -126,7 +169,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       let lastError;
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
-          const response = await context.request.get(url, { timeout: 18000, maxRedirects: 0, headers: { Referer: '' } });
+          const response = await context.request.get(url, { timeout: 18000, maxRedirects: 0, headers: { Referer: site.platform === 'wechat' ? '' : article.sourceUrl } });
           const headers = response.headers();
           if ([301, 302, 303, 307, 308].includes(response.status()) && headers.location) {
             await response.dispose(); return getResource(new URL(headers.location, url).href, redirects + 1);
@@ -177,9 +220,9 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       } catch (error) { return { error: error.message }; }
     });
     await page.addScriptTag({ path: singleFilePath });
-    const html = await page.evaluate(async () => {
+    const html = await page.evaluate(async resolvedSourceUrl => {
       const data = await singlefile.getPageData({
-        url: location.href, filenameTemplate: 'original.html', filenameMaxLength: 190,
+        url: resolvedSourceUrl, filenameTemplate: 'original.html', filenameMaxLength: 190,
         blockScripts: true, blockVideos: true, blockAudios: true, blockFonts: false,
         removeFrames: true, removeHiddenElements: false, removeUnusedStyles: false,
         compressHTML: false, compressContent: false, loadDeferredContent: false,
@@ -195,8 +238,8 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
         }
       });
       return data.content;
-    });
-    if (!html || !html.includes('js_content')) throw new Error('离线 HTML 未包含文章正文。');
+    }, resolvedSourceUrl);
+    if (!html || !html.includes('data-wx2md-body')) throw new Error('离线 HTML 未包含文章正文。');
     const embeddedHtml = await page.evaluate(linkLocalImages, { html, mapping: embeddedMapping, embedded: true });
     if (embeddedHtml.linked < article.images.filter(image => mapping[image.src]).length) warnings.push('部分 HTML 图片未能替换为下载到的原图。');
     await writeFile(path.join(stageDirectory, fileNames.html), embeddedHtml.html, 'utf8');
@@ -206,16 +249,17 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
     await offlinePage.route('**/*', route => /^https?:/.test(route.request().url()) ? route.abort() : route.continue());
     await offlinePage.goto(pathToFileURL(path.join(stageDirectory, fileNames.html)).href, { waitUntil: 'load', timeout: 30000 });
     const offlineCheck = await offlinePage.evaluate(async () => {
-      await Promise.all([...document.querySelectorAll('#js_content img')].map(i => i.decode().catch(() => {})));
+      const content = document.querySelector('[data-wx2md-body], #js_content');
+      await Promise.all([...content.querySelectorAll('img')].map(i => i.decode().catch(() => {})));
       return {
-        bodyPresent: !!document.querySelector('#js_content'),
-        bodyTextLength: (document.querySelector('#js_content')?.textContent || '').trim().length,
-        images: document.querySelectorAll('#js_content img').length,
-        missingImages: [...document.querySelectorAll('#js_content img')].filter(i => !i.naturalWidth).length,
-        remoteImages: [...document.querySelectorAll('#js_content img')].filter(i => /^https?:/.test(i.src)).length,
+        bodyPresent: !!content,
+        bodyTextLength: (content?.textContent || '').trim().length,
+        images: content.querySelectorAll('img').length,
+        missingImages: [...content.querySelectorAll('img')].filter(i => !i.naturalWidth).length,
+        remoteImages: [...content.querySelectorAll('img')].filter(i => /^https?:/.test(i.src)).length,
         remoteStylesheets: [...document.querySelectorAll('link[rel="stylesheet"]')].filter(i => /^https?:/.test(i.href)).length,
-        embeddedImages: [...document.querySelectorAll('#js_content img')].filter(i => /^data:image\//.test(i.getAttribute('src') || '')).length,
-        openableImages: document.querySelectorAll('#js_content img[data-wx2md-original-image]').length
+        embeddedImages: [...content.querySelectorAll('img')].filter(i => /^data:image\//.test(i.getAttribute('src') || '')).length,
+        openableImages: content.querySelectorAll('img[data-wx2md-original-image]').length
       };
     });
     await offlinePage.close();
@@ -248,6 +292,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
     const metadata = {
       format_version: 4, tool: 'wx2md-local', tool_version: toolVersion, status: warnings.length ? 'partial' : 'completed',
       title: article.title, account: article.accountName, author: article.author, published_at: article.publishTime,
+      site: site.platform, site_name: site.label, article_kind: site.kind, extraction: article.extraction,
       original_url: job.url, resolved_url: article.sourceUrl, saved_at: savedAt.toISOString(), timezone: 'Asia/Shanghai',
       source: job.source || 'manual', browser: browser.version(), platform: process.platform,
       file_names: fileNames, files: fileInfo, screenshots: screenshotFiles, screenshot_scale: captureScale,

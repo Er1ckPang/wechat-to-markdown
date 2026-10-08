@@ -9,7 +9,7 @@ export function linkLocalImages({ html, mapping, embedded = false }) {
   doc.head.append(policy);
   let linked = 0;
   const originals = new Map();
-  doc.querySelectorAll('#js_content img').forEach(image => {
+  doc.querySelectorAll('[data-wx2md-body] img, #js_content img').forEach(image => {
     const candidates = [image.getAttribute('data-sf-original-src'), image.getAttribute('data-src'), image.getAttribute('src')];
     const source = candidates.find(value => value && mapping[value]);
     if (!source) return;

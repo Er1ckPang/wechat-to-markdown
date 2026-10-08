@@ -71,14 +71,14 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && pathname === '/api/jobs') {
       const input = await body(req);
       const urls = extractArticleUrls(input.text || input.url || '');
-      if (!urls.length) throw new Error('没有找到微信公众号文章链接。');
+      if (!urls.length) throw new Error('没有找到可保存的文章链接。支持公众号、知乎专栏或回答、CSDN、博客园和普通文章网页。');
       if (urls.length > 20) throw new Error('每次最多提交 20 个链接。');
       const results = urls.map(url => store.enqueue(url, 'manual', '', !!input.force));
       worker.kick(); return json(res, 202, { results });
     }
     if (req.method === 'POST' && pathname === '/api/simulate-message') {
       const input = await body(req); const urls = extractArticleUrls(input.text || '');
-      if (!urls.length) throw new Error('测试消息需要包含公众号文章链接。');
+      if (!urls.length) throw new Error('测试消息需要包含可保存的文章链接。');
       if (urls.length > 20) throw new Error('每次最多提交 20 个链接。');
       const result = store.enqueueMessage('simulation:' + randomUUID(), urls, 'message-test');
       worker.kick(); return json(res, 202, result);
@@ -139,7 +139,7 @@ const server = http.createServer(async (req, res) => {
       if (!namedOutput && !localImage && !(legacyOutput && /^(?:article\.md|markdown\.html|original(?:-singlefile)?\.html|images\.html|screenshots\.html|original(?:-\d{3})?\.png|metadata\.json|images\/\d+\.(?:png|jpg|webp|gif|svg|avif|bmp))$/.test(relative))) return json(res, 404, { error: '文件不存在。' });
       return await serveFile(res, path.join(job.output_dir, relative), true);
     }
-    if (req.method === 'GET' && ['/', '/app.js', '/style.css', '/guide.html', '/mac-guide.html'].includes(pathname)) {
+    if (req.method === 'GET' && ['/', '/app.js', '/style.css', '/guide.html', '/mac-guide.html', '/sites-guide.html'].includes(pathname)) {
       return await serveFile(res, path.join(root, 'public', pathname === '/' ? 'index.html' : pathname.slice(1)));
     }
     return json(res, 404, { error: '地址不存在。' });
@@ -157,7 +157,7 @@ function shutdown() {
 }
 server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? '端口已被占用；如果工具已启动，请直接打开本地页面。' : error.message); process.exit(1); });
 server.listen(port, '127.0.0.1', () => {
-  console.log(`微信公众号本地保存已启动：${origin}`);
+  console.log(`在线文章本地保存已启动：${origin}`);
   worker.start(); receiver.start();
 });
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);

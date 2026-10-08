@@ -56,7 +56,7 @@ export class FeishuReceiver {
     const dispatcher = new lark.EventDispatcher({ logger }).register({
       'im.message.receive_v1': event => {
         const parsed = parseFeishuMessage(event, this.getConfig().feishu.allowedSenders);
-        this.lastEvent = { at: new Date().toISOString(), senderId: parsed.senderId || '', result: parsed.ignored || (parsed.urls.length ? `收到 ${parsed.urls.length} 个文章链接` : '消息没有公众号链接') };
+        this.lastEvent = { at: new Date().toISOString(), senderId: parsed.senderId || '', result: parsed.ignored || (parsed.urls.length ? `收到 ${parsed.urls.length} 个文章链接` : '消息没有可保存的文章链接') };
         if (parsed.ignored) return;
         // Commit to the durable queue before ACK; never wait for browser capture here.
         this.store.enqueueMessage(parsed.messageId, parsed.urls, 'feishu');

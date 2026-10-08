@@ -1,6 +1,6 @@
 // Browser-side extraction adapted from wx2md Community (MIT), Copyright (c) 2026 望山.
-export function extractArticle() {
-  const content = document.querySelector('#js_content');
+export function extractArticle({ site = { platform: 'wechat' }, info = {} } = {}) {
+  const content = document.querySelector('[data-wx2md-body], #js_content');
   if (!content) throw new Error('没有找到文章正文。文章可能已删除、需要登录或需要在微信中验证。');
   const text = (...selectors) => selectors.map(s => document.querySelector(s)?.textContent?.trim()).find(Boolean) || '';
   const meta = name => document.querySelector(`meta[property="${name}"],meta[name="${name}"]`)?.content || '';
@@ -8,12 +8,12 @@ export function extractArticle() {
   const cloneElements = [...clone.querySelectorAll('*')];
   const pairs = [...content.querySelectorAll('*')].map((original, index) => [original, cloneElements[index]]);
   const formulas = [];
-  const formulaSelector = '[data-formula],[data-latex],script[type^="math/tex"],math';
+  const formulaSelector = '[data-formula],[data-latex],img[ee],.katex,mjx-container,script[type^="math/tex"],math';
   for (const element of [...clone.querySelectorAll(formulaSelector)]) {
     if (!clone.contains(element) || element.parentElement?.closest(formulaSelector)) continue;
-    const tex = (element.getAttribute('data-formula') || element.getAttribute('data-latex') || element.querySelector('annotation[encoding*="tex" i]')?.textContent || (element.tagName === 'SCRIPT' ? element.textContent : '')).trim();
+    const tex = (element.getAttribute('data-formula') || element.getAttribute('data-latex') || element.getAttribute('ee') || element.querySelector('annotation[encoding*="tex" i]')?.textContent || (element.tagName === 'SCRIPT' ? element.textContent : '')).trim();
     if (!tex) continue; // Keep native MathML when a TeX source is unavailable.
-    const display = ['SECTION', 'DIV'].includes(element.tagName) || element.getAttribute('display') === 'block' || element.getAttribute('type')?.includes('mode=display');
+    const display = ['SECTION', 'DIV'].includes(element.tagName) || element.getAttribute('display') === 'block' || element.getAttribute('type')?.includes('mode=display') || !!element.closest('.katex-display') || element.getAttribute('display') === 'true';
     const svg = element.querySelector('svg')?.cloneNode(true);
     if (svg) {
       svg.querySelectorAll('script,foreignObject,image').forEach(e => e.remove());
@@ -65,29 +65,34 @@ export function extractArticle() {
   clone.querySelectorAll('img').forEach(image => {
     const src = image.getAttribute('data-src') || image.getAttribute('src');
     if (!src) { image.remove(); return; }
-    const absolute = new URL(src, location.href).href;
+    const absolute = new URL(src, document.baseURI).href;
     image.setAttribute('src', absolute);
     image.removeAttribute('data-src'); image.removeAttribute('srcset');
-    const originalImage = originalImages.find(original => new URL(original.getAttribute('data-src') || original.src, location.href).href === absolute);
+    const originalImage = originalImages.find(original => new URL(original.getAttribute('data-src') || original.src, document.baseURI).href === absolute);
     images.push({ src: absolute, alt: image.alt || '', width: originalImage?.naturalWidth || null, height: originalImage?.naturalHeight || null });
   });
   clone.querySelectorAll('a[href]').forEach(anchor => {
     try {
-      const url = new URL(anchor.getAttribute('href'), location.href);
+      const url = new URL(anchor.getAttribute('href'), document.baseURI);
       if (['https:', 'http:'].includes(url.protocol)) anchor.setAttribute('href', url.href);
       else anchor.removeAttribute('href');
     } catch { anchor.removeAttribute('href'); }
   });
   clone.querySelectorAll('*').forEach(element => {
     for (const attribute of [...element.attributes]) {
+      if (attribute.name === 'class' && element.localName === 'code') {
+        const languages = attribute.value.split(/\s+/).filter(c => /^(?:language|lang)-[\w+-]+$/.test(c));
+        if (languages.length) { element.className = languages.join(' '); continue; }
+      }
       if (['class', 'style', 'id'].includes(attribute.name) || (attribute.name.startsWith('data-') && !attribute.name.startsWith('data-wx2md-')) || attribute.name.startsWith('on')) element.removeAttribute(attribute.name);
     }
   });
   return {
-    title: text('#activity-name', '.rich_media_title') || meta('og:title') || document.title || '未命名文章',
-    accountName: text('#js_name', '.rich_media_meta_nickname') || meta('og:article:author'),
-    author: text('#js_author_name', '#js_author', '.rich_media_meta_text.rich_media_meta_author'),
-    publishTime: text('#publish_time', '#js_publish_time') || meta('article:published_time'),
+    title: info.title || text('#activity-name', '.rich_media_title') || meta('og:title') || document.title || '未命名文章',
+    accountName: site.platform === 'wechat' ? text('#js_name', '.rich_media_meta_nickname') || meta('og:article:author') : info.author || new URL(info.sourceUrl || location.href).hostname,
+    author: site.platform === 'wechat' ? text('#js_author_name', '#js_author', '.rich_media_meta_text.rich_media_meta_author') : info.author || '',
+    publishTime: info.published || text('#publish_time', '#js_publish_time') || meta('article:published_time'),
+    platform: site.platform, siteName: site.label || '', extraction: { method: info.confidence || 'site-adapter', selector: info.selector || '#js_content' },
     sourceUrl: location.href, html: clone.innerHTML, images, formulas,
     structure: { headings: clone.querySelectorAll('h1,h2,h3,h4,h5,h6').length, inferredHeadings, tables: clone.querySelectorAll('table').length, formulas: formulas.length + clone.querySelectorAll('math').length },
     bodyTextLength: (clone.textContent || '').trim().length,

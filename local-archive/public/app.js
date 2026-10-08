@@ -16,11 +16,11 @@ function renderJobs(jobs) {
   for (const job of jobs) {
     const card = element('article', '', 'job'); card.dataset.jobId = job.id;
     const header = element('div', '', 'job-header');
-    header.append(element('h3', job.title || '公众号文章 · ' + new URL(job.url).pathname.split('/').pop()));
+    header.append(element('h3', job.title || '文章 · ' + new URL(job.url).hostname + new URL(job.url).pathname));
     const stateClass = ['failed', 'needs_manual'].includes(job.status) ? 'error' : job.status === 'partial' ? 'warning' : ['pending', 'processing'].includes(job.status) ? 'waiting' : '';
     header.append(element('span', statusNames[job.status] || job.status, 'badge ' + stateClass)); card.append(header);
     const source = { manual: '手动保存', feishu: '飞书消息', 'message-test': '消息入口测试', 'user-example': '示例文章' }[job.source] || job.source;
-    card.append(element('div', `${new Date(job.created_at).toLocaleString('zh-CN')} · ${source}${job.metadata?.account ? ' · ' + job.metadata.account : ''}${job.metadata ? ' · ' + (job.metadata.tool_version ? 'v' + job.metadata.tool_version : '旧版归档') : ''}`, 'job-meta'));
+    card.append(element('div', `${new Date(job.created_at).toLocaleString('zh-CN')} · ${source}${job.metadata?.site_name ? ' · ' + job.metadata.site_name : ''}${job.metadata?.account ? ' · ' + job.metadata.account : ''}${job.metadata ? ' · ' + (job.metadata.tool_version ? 'v' + job.metadata.tool_version : '旧版归档') : ''}`, 'job-meta'));
     if (job.status === 'processing') card.append(element('div', job.stage + '…', 'stage'));
     if (job.error) card.append(element('p', job.error, 'error-text'));
     const actions = element('div', '', 'job-actions');

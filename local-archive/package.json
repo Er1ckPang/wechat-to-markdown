@@ -1,9 +1,9 @@
 {
   "name": "wx2md-local",
-  "version": "1.1.0-p",
+  "version": "1.2.0-p",
   "private": true,
   "type": "module",
-  "description": "本地微信公众号归档：Markdown、原格式 HTML、长截图与飞书收件",
+  "description": "本地文章归档：公众号、知乎、CSDN、博客园、普通网页与飞书收件",
   "license": "AGPL-3.0-or-later",
   "engines": {
     "node": ">=22.13.0"
@@ -28,5 +28,5 @@
   "devDependencies": {
     "esbuild": "0.28.2"
   },
-  "releaseVersion": "1.1.0.p"
+  "releaseVersion": "1.2.0.p"
 }
