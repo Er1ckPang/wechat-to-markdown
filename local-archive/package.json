@@ -1,6 +1,6 @@
 {
   "name": "wx2md-local",
-  "version": "1.0.0-p",
+  "version": "1.1.0-p",
   "private": true,
   "type": "module",
   "description": "本地微信公众号归档：Markdown、原格式 HTML、长截图与飞书收件",
@@ -11,7 +11,11 @@
   "scripts": {
     "start": "node --no-warnings src/server.mjs",
     "build": "node scripts/build.mjs",
-    "test": "node --no-warnings --test test/*.test.mjs"
+    "test": "node --no-warnings --test test/*.test.mjs",
+    "doctor": "node --no-warnings scripts/doctor.mjs",
+    "build:guides": "node scripts/build-guides.mjs",
+    "start:background": "node --no-warnings scripts/start.mjs",
+    "stop": "node --no-warnings scripts/stop.mjs"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "1.74.0",
@@ -24,5 +28,5 @@
   "devDependencies": {
     "esbuild": "0.28.2"
   },
-  "releaseVersion": "1.0.0.p"
+  "releaseVersion": "1.1.0.p"
 }

@@ -1,0 +1,40 @@
+{
+  "release": "v1.1.0.p",
+  "date": "2026-10-08",
+  "branch": "feat/macos-support",
+  "baseBranch": "dev_p",
+  "baseCommit": "3568b19c90619dec020e5c99d3c711c02de152df",
+  "npmVersion": "1.1.0-p",
+  "displayVersion": "1.1.0.p",
+  "macOSMinimum": "14",
+  "macArchitectures": [
+    "arm64",
+    "x64"
+  ],
+  "localValidation": {
+    "localTestsPassed": 10,
+    "upstreamTestsPassed": 45,
+    "upstreamBuild": "passed",
+    "recordsPreserved": 8,
+    "articleDirectoriesPreserved": 9,
+    "articleFilesVerified": 238,
+    "servedLocalImages": 171
+  },
+  "nativeValidation": {
+    "workflow": "Local archive cross-platform",
+    "runners": [
+      "windows-latest",
+      "macos-15",
+      "macos-15-intel"
+    ],
+    "results": "See the workflow run for this branch at https://github.com/Er1ckPang/wechat-to-markdown/actions/workflows/local-archive.yml"
+  },
+  "sourcePackageExcludes": [
+    "personal configuration",
+    "credentials",
+    "SQLite databases",
+    "real articles",
+    "logs",
+    "node_modules"
+  ]
+}

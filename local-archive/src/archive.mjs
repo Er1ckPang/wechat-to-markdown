@@ -1,4 +1,5 @@
-import { chromium } from 'playwright';
+import { launchBrowser } from './browser.mjs';
+export { launchBrowser } from './browser.mjs';
 import { mkdir, readFile, writeFile, rename, stat, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,16 +11,9 @@ import { captureScreenshot } from './screenshot.mjs';
 
 export class NeedsManualError extends Error { name = 'NeedsManualError'; }
 const singleFilePath = fileURLToPath(new URL('../vendor/singlefile.js', import.meta.url));
+const packageInfo = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+const toolVersion = packageInfo.releaseVersion || packageInfo.version;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-export async function launchBrowser({ showBrowser = false, browser = 'auto' } = {}) {
-  const channels = browser === 'auto' ? (process.platform === 'win32' ? ['msedge', 'chrome', 'chromium'] : ['chrome', 'chromium']) : [browser];
-  for (const channel of channels) {
-    try { return await chromium.launch({ ...(channel === 'chromium' ? {} : { channel }), headless: !showBrowser }); }
-    catch { /* 尝试下一款已安装浏览器 */ }
-  }
-  throw new Error('没有可用的 Edge、Chrome 或 Chromium。请安装 Edge/Chrome 后重新启动。');
-}
 
 function imageExtension(bytes, type) {
   if (bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) return 'png';
@@ -252,7 +246,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       fileInfo[name] = { bytes: bytes.length, sha256: hash(bytes), ...(name.endsWith('.png') ? { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) } : {}) };
     }
     const metadata = {
-      format_version: 4, tool: 'wx2md-local', tool_version: '1.0.0.p', status: warnings.length ? 'partial' : 'completed',
+      format_version: 4, tool: 'wx2md-local', tool_version: toolVersion, status: warnings.length ? 'partial' : 'completed',
       title: article.title, account: article.accountName, author: article.author, published_at: article.publishTime,
       original_url: job.url, resolved_url: article.sourceUrl, saved_at: savedAt.toISOString(), timezone: 'Asia/Shanghai',
       source: job.source || 'manual', browser: browser.version(), platform: process.platform,

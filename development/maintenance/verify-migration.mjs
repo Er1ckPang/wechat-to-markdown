@@ -2,12 +2,14 @@ import {readFile,stat,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
-import {chromium} from '../../local-archive/node_modules/playwright/index.mjs';
+import {launchBrowser} from '../../local-archive/src/browser.mjs';
 
 const repo=fileURLToPath(new URL('../../',import.meta.url)),app=path.join(repo,'local-archive');
+const packageInfo=JSON.parse(await readFile(path.join(app,'package.json'),'utf8'));
+const version=packageInfo.releaseVersion||packageInfo.version;
 const base='http://127.0.0.1:17880';
 const health=await(await fetch(base+'/health')).json();
-assert.equal(health.version,'1.0.0.p');assert.equal(path.resolve(health.root),path.resolve(app));
+assert.equal(health.version,version);assert.equal(path.resolve(health.root),path.resolve(app));
 const token=(await(await fetch(base+'/api/session')).json()).token;
 const status=await(await fetch(base+'/api/status',{headers:{'X-Wx2md-Token':token}})).json();
 const migration=JSON.parse(await readFile(path.join(app,'data/reorganization.json'),'utf8'));
@@ -29,15 +31,15 @@ for(const job of status.jobs){
   for(const profile of ['mobile','desktop'])assert.equal((await fetch(`${base}/view/${job.id}/${profile}`)).status,200);
  }
 }
-const browser=await chromium.launch({channel:'msedge',headless:true});
+const browser=await launchBrowser();
 const errors=[];
 try{
  const page=await browser.newPage({viewport:{width:390,height:844}});page.on('pageerror',e=>errors.push(e.message));
- await page.goto(base);await page.locator('#service-version').getByText('正在运行 · v1.0.0.p',{exact:true}).waitFor();
- await page.getByRole('button',{name:'保存设置',exact:true}).click();assert.ok((await page.locator('#runtime-root').textContent()).includes('wx2md-local-v1.0.0.p'));
- for(const url of [base+'/guide.html']){await page.goto(url);assert.ok((await page.locator('body').textContent()).includes('1.0.0.p'));}
+ await page.goto(base);await page.locator('#service-version').getByText(`正在运行 · v${version}`,{exact:true}).waitFor();
+ await page.getByRole('button',{name:'保存设置',exact:true}).click();assert.equal(path.resolve(await page.locator('#runtime-root').textContent()),path.resolve(app));
+ for(const url of [base+'/guide.html',base+'/mac-guide.html']){await page.goto(url);assert.ok((await page.locator('body').textContent()).includes(version));}
  assert.deepEqual(errors,[]);
 }finally{await browser.close();}
-const report={release:'v1.0.0.p',displayVersion:health.version,packageVersion:'1.0.0-p',recordsPreserved:status.jobs.length,migratedArticleDirectories:migration.articleDirectoriesCopied,migratedFilesVerified:migration.filesVerified,servedMarkdowns:mdChecks,servedLocalImages:imageChecks,metadataFileChecks:fileChecks,uiErrors:errors};
+const report={release:`v${version}`,displayVersion:health.version,packageVersion:packageInfo.version,recordsPreserved:status.jobs.length,migratedArticleDirectories:migration.articleDirectoriesCopied,migratedFilesVerified:migration.filesVerified,servedMarkdowns:mdChecks,servedLocalImages:imageChecks,metadataFileChecks:fileChecks,uiErrors:errors};
 await writeFile(path.join(app,'data/baseline-verification.json'),JSON.stringify(report,null,2));
 console.log(JSON.stringify(report));

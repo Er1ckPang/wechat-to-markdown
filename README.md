@@ -1,8 +1,8 @@
-# WeChat to Markdown — 个人本地归档版 v1.0.0.p
+# WeChat to Markdown — Windows / Mac 本地归档版 v1.1.0.p
 
-这是 Er1ckPang 仓库中的个人开发基线，功能冻结自已验证的 wx2md Local v1.2.1。`v1.0.0.p` 是重新整理后的版本名称，并非回退到早期 v1.0.0。
+当前版本在个人基线 v1.0.0.p 上增加 Mac 环境安装、检查、后台启动与停止。归档格式沿用此前版本：MD＋本地原图、内嵌 HTML、手机与电脑两张无损长图，以及 metadata。
 
-开发分支：`dev_p`。归档 tag：`v1.0.0.p`。整理日期：2026-10-06。
+特性分支：`feat/macos-support`，基于 `dev_p`。历史基线 tag：`v1.0.0.p`。当前软件版本：`v1.1.0.p`，日期：2026-10-08。
 
 本仓库同时保留上游 Community v0.3.0 扩展源码，以及独立的 [local-archive/ 本地工具](local-archive/)。
 原扩展介绍保存在 [docs/upstream-README.md](docs/upstream-README.md)；本地工具与商店产品不是同一安装包。
@@ -11,6 +11,7 @@
 
 - [完整开发记录](DEVELOPMENT_LOG.md)：需求演进、源码归属、版本变化、截图问题与修复、验证证据、开发入口和可见会话记录。
 - [图文使用指南](local-archive/public/guide.html)：手动保存、文件说明、飞书接入、版本切换和 Mac 启动。
+- [Mac 安装与启动指南](local-archive/MAC_GUIDE.md)：Node 安装、首次安装、四个启动文件、诊断、迁移文章与排障。
 - [版本记录](local-archive/CHANGELOG.txt)：历史功能版本和当前基线的对应关系。
 - [第三方归属与许可](local-archive/THIRD_PARTY_NOTICES.txt)：参考代码、依赖和许可证。
 
@@ -42,7 +43,7 @@ local-archive/archives/
 
 安装 Node.js 22.13+（推荐 24 LTS）和 Edge 或 Chrome，进入 `local-archive/`，双击 **启动工具.cmd**。首次需安装依赖，浏览器地址为 <http://127.0.0.1:17880/>。
 
-本机整理后入口为 `outputs/wx2md-local-v1.0.0.p/local-archive/启动工具.cmd`。关闭网页不会停止后台；停止按钮位于“保存设置”。页面底部和 `/health` 显示实际运行版本与目录。
+本机整理后入口为 `outputs/wx2md-local-v1.1.0.p/local-archive/启动工具.cmd`。关闭网页不会停止后台；停止按钮位于“保存设置”。页面底部和 `/health` 显示实际运行版本与目录。
 
 源码安装与开发：
 
@@ -53,7 +54,21 @@ pnpm test
 pnpm start
 ```
 
-修改 SingleFile bundle 输入时运行 `pnpm build`。Mac 安装 Node.js 与 Chrome 后运行 `chmod +x start-mac.command` 并启动；Mac 脚本尚未在用户设备实测。
+修改 SingleFile bundle 输入时运行 `pnpm build`；修改 Mac 指南后运行 `pnpm build:guides`。
+
+## Mac 首次安装与启动
+
+支持 macOS 14+、Apple Silicon 与 Intel 64 位。先从 [Node 官方下载页](https://nodejs.org/en/download) 安装 macOS 版 Node.js 24 LTS，再进入 `local-archive/`：
+
+```sh
+chmod +x *.command scripts/mac-common.sh
+bash install-mac.command
+bash start-mac.command
+```
+
+以后双击 `start-mac.command`；停止用 `stop-mac.command`，检查用 `doctor-mac.command`。安装入口会检测现有浏览器，缺失时下载匹配版本的 Chromium。后台使用独立进程，关闭启动窗口后继续运行；端口冲突、旧目录服务和启动失败均会给出提示。详细步骤见 [Mac 指南](local-archive/MAC_GUIDE.md)。
+
+原生自动测试覆盖 Windows、Apple Silicon Mac 和 Intel Mac，状态见 [GitHub Actions](https://github.com/Er1ckPang/wechat-to-markdown/actions/workflows/local-archive.yml)。具体用户设备和飞书账号仍需现场验收。
 
 ## 飞书接入
 
@@ -80,7 +95,7 @@ pnpm start
 
 ## 版本、数据和历史档案
 
-Git tag 和界面版本使用 `v1.0.0.p` / `1.0.0.p`；npm 要求合法 SemVer，所以 `local-archive/package.json` 的 `version` 是 `1.0.0-p`，`releaseVersion` 是 `1.0.0.p`。健康接口、启动器和新归档的元信息读取显示版本。
+当前界面版本使用 `1.1.0.p`；npm 要求合法 SemVer，所以 `local-archive/package.json` 的 `version` 是 `1.1.0-p`，`releaseVersion` 是 `1.1.0.p`。原基线 tag `v1.0.0.p` 保留当时的源码。健康接口、启动器和新归档的元信息读取显示版本。
 
 本机只保留这一套可编辑工作目录。旧开发目录、原始研究和测试产物在工作区 `history/` 中以 ZIP 保留；旧版源码 ZIP 也在其中。文章与最新配置、任务库迁入当前 `local-archive/`，任务中的旧路径已修正。旧文章的生成版本和内容不会伪造为新版本。
 
@@ -90,7 +105,7 @@ Git 只保存源码、文档、测试和公开依赖源码。`data/`、`archives
 
 参考项目为 [wangshan9870/wechat-to-markdown](https://github.com/wangshan9870/wechat-to-markdown)，Community v0.3.0，审计提交 `68b7337ae246e6ab328e16961dcd500ff7297466`。原扩展保持 MIT；本地工具因使用 SingleFile Core，按 AGPL-3.0-or-later 提供，原 MIT 署名与依赖许可保留。SingleFile 完整源码在 `local-archive/third-party-source/single-file-core/`。
 
-Windows 手动归档已实测。MoE 示例包含 19 个标题、3 张表格、3 处公式、16 张图片；最新 MD 本地图片断网显示和原始字节校验通过。手机版 1296×67515、电脑版 2154×49296；长图完整覆盖且接缝检查通过。当前基线的浏览器、队列、消息和截图回归共 6 项通过。
+Windows 手动归档已实测；新增 Mac 安装、启动与原生自动测试。MoE 示例包含 19 个标题、3 张表格、3 处公式、16 张图片；最新 MD 本地图片断网显示和原始字节校验通过。手机版 1296×67515、电脑版 2154×49296；长图完整覆盖且接缝检查通过。原有 6 项浏览器、队列、消息和截图测试沿用，新增 4 项跨平台运行与端口保护测试。
 
 仓库根目录的上游测试共 45 项通过，扩展构建通过。`vitest.config.ts` 限定上游测试目录，避免把本地工具的 Node.js 测试误当成 Vitest 测试。整理后复核了 8 条任务、9 个文章目录、238 个迁移文件，以及 HTTP 下的 8 份 MD 和 171 个图片引用；发布清单见 [development/release-manifest.json](development/release-manifest.json)。
 

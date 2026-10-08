@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { archiveArticle } from '../src/archive.mjs';
-import { chromium } from 'playwright';
+import { launchBrowser } from '../src/browser.mjs';
 import { pathToFileURL } from 'node:url';
 import { sanitizeMarkdownHtml, renderMarkdown } from '../src/markdown.mjs';
 
@@ -56,7 +56,7 @@ test('真实浏览器归档：五个标题命名文件加images目录，MD本地
     assert.match(md, /\$\$\ny = x\^2\n\$\$/); assert.match(md, /\$4.2 \\times 10\^\{10\}\$/);
     assert.match(md, /colspan="2"/); assert.match(md, /<math/);
     assert.equal(result.metadata.markdown_structure.formulas, 3);
-    const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : 'chrome', headless: true });
+    const browser = await launchBrowser();
     try {
       const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
       await page.goto(pathToFileURL(path.join(result.outputDir, names.html)).href);

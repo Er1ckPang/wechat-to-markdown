@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright';
+import { launchBrowser } from '../src/browser.mjs';
 import { PNG } from 'pngjs';
 import { mkdtemp,readFile,rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -9,7 +9,7 @@ import { captureScreenshot } from '../src/screenshot.mjs';
 
 test('逐屏拼接保留每段颜色和底部、去除悬浮作者栏、保留横向内容', {timeout:120000},async()=>{
  const directory=await mkdtemp(path.join(os.tmpdir(),'wx2md-pixel-test-'));
- const browser=await chromium.launch({channel:process.platform==='win32'?'msedge':'chrome',headless:true});
+ const browser=await launchBrowser();
  try{
   const page=await browser.newPage({viewport:{width:170,height:900},deviceScaleFactor:3});
   const colors=Array.from({length:30},(_,i)=>[(i*41+19)%256,(i*67+31)%256,(i*29+43)%256]);
@@ -42,7 +42,7 @@ test('逐屏拼接保留每段颜色和底部、去除悬浮作者栏、保留�
 
 test('手机与电脑分别排版，宽表格保留六列，裁掉电脑两侧页面空白', {timeout:120000},async()=>{
  const directory=await mkdtemp(path.join(os.tmpdir(),'wx2md-profile-test-'));
- const browser=await chromium.launch({channel:process.platform==='win32'?'msedge':'chrome',headless:true});
+ const browser=await launchBrowser();
  try{
   const outputs={};
   for(const [profile,viewport]of Object.entries({mobile:{width:432,height:768},desktop:{width:1280,height:720}})){

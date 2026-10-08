@@ -1,6 +1,6 @@
 # 完整开发记录：WeChat to Markdown 个人本地归档版
 
-整理日期：2026-10-06（Asia/Shanghai）。当前基线：`v1.0.0.p`。开发分支：`dev_p`。
+基线整理：2026-10-06；Mac 特性补充：2026-10-08（Asia/Shanghai）。当前版本：`v1.1.0.p`，特性分支：`feat/macos-support`；原基线为 `v1.0.0.p` / `dev_p`。
 
 本记录根据实际源码、历史版本、研究文件、测试报告和可见会话整理。正文解释需求、方案、变化与证据；附录保留可见用户／助手消息和执行摘要。工具输出和诊断产物由本机历史 ZIP 保留。本记录不包含凭据或内部推理。
 
@@ -1668,3 +1668,18 @@ MoE 文章已按新版重新保存，恰好生成5个标题命名文件。手机
 
 用户要求完整开发记录和 README、本地仅保留当前版本、更名为 v1.0.0.p，并上传开发代码到指定 GitHub 仓库。随后明确分支名为 dev_p，tag 保持 v1.0.0.p；授权凭据没有写入记录。
 本次执行包括独立目录准备、版本映射、依赖安装、6 项本地测试、45 项上游测试、扩展构建、文章与任务路径迁移、历史 ZIP 校验、源代码凭据检查、提交、分支与 tag 推送和远端 ref 核对。发布身份和整理清单见 development/release-manifest.json 与本机 history/ 内压缩清单；最终提交以 Git tag 所指向的提交为准。
+
+
+## Mac 特性阶段 · 2026-10-08
+
+用户要求增加 Mac 支持与环境安装、软件启动指导，并在新的特性分支实现。建立 feat/macos-support，基于 dev_p / 3568b19；软件版本增加到 v1.1.0.p。
+
+原 Mac 脚本只做 Node 检查、依赖安装和 nohup，未覆盖浏览器缺失、Finder 路径、端口冲突、并发启动、停止和诊断。现新增四个 command 入口与共享 Bash 3.2 初始化；LF 和执行权限由 Git 记录。安装采用锁文件，缺失时下载与当前 Playwright 匹配的 Chromium；已有浏览器实际启动成功即可复用。
+
+采集浏览器选择集中到 browser.mjs：Windows 优先 Edge，Mac 优先匹配的 Chromium，再尝试 Chrome 与 Edge。所有浏览器回归测试使用同一选择策略。doctor 实测 SQLite 与 PNG 渲染；runtime 检查健康接口的目录、版本与端口，使用独立后台进程、启动锁、日志以及原有停止 API 的忙碌保护。不会通过端口查询强制杀其他进程。
+
+MAC_GUIDE.md 是指南源文件，build:guides 生成可断网打开的 mac-guide.html；主使用页提供入口。指南涵盖 Node 官方安装器、Homebrew 路径、nvm、首次安装、启动停止、权限、网络、验证码、日志、睡眠和飞书消费者切换。Mac 不直接复制 Windows data，以避免绝对路径失效；文章与图片可以独立复制。
+
+新增 GitHub Actions 工作流，矩阵为 windows-latest、macos-15（Apple Silicon）、macos-15-intel。运行锁定依赖安装、浏览器安装、完整归档和截图回归、Mac 原生首次安装与后台生命周期。实际结果以 Actions 为准，不将 Windows 模拟或语法检查称为用户 Mac 实测。
+
+Windows 验证：本地 10 项（原 6 项加运行模块 4 项）通过，上游 45 项与构建通过。版本目录迁至 wx2md-local-v1.1.0.p，任务与文章绝对路径更新。迁移中的 Windows 依赖 junction 无法直接随目录移动，恢复目录后按锁文件重新安装依赖；文章与配置未改写内容。8 条任务、9 个文章目录、238 个文章文件、171 个 HTTP 图片引用已复核。旧源码 ZIP 移入 history，原基线 tag 保留。

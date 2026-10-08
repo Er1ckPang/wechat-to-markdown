@@ -139,7 +139,7 @@ const server = http.createServer(async (req, res) => {
       if (!namedOutput && !localImage && !(legacyOutput && /^(?:article\.md|markdown\.html|original(?:-singlefile)?\.html|images\.html|screenshots\.html|original(?:-\d{3})?\.png|metadata\.json|images\/\d+\.(?:png|jpg|webp|gif|svg|avif|bmp))$/.test(relative))) return json(res, 404, { error: '文件不存在。' });
       return await serveFile(res, path.join(job.output_dir, relative), true);
     }
-    if (req.method === 'GET' && ['/', '/app.js', '/style.css', '/guide.html'].includes(pathname)) {
+    if (req.method === 'GET' && ['/', '/app.js', '/style.css', '/guide.html', '/mac-guide.html'].includes(pathname)) {
       return await serveFile(res, path.join(root, 'public', pathname === '/' ? 'index.html' : pathname.slice(1)));
     }
     return json(res, 404, { error: '地址不存在。' });
