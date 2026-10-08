@@ -22,12 +22,15 @@ const fixture=async()=>{
 test('MHTML 原图无损离线导入，生成全部归档并保留旧任务迁移信息',{timeout:60000},async()=>{
   const f=await fixture(),browser=await launchBrowser();let store;
   try {
-    const context=await browser.newContext();await context.route('**/*',route=>route.fulfill({status:200,contentType:route.request().url()===imageUrl?'image/gif':'text/html; charset=utf-8',body:route.request().url()===imageUrl?gif:html(imageUrl)}));
-    const page=await context.newPage();await page.goto(source);await page.evaluate(()=>document.querySelector('img').decode());
+    const capturedHtml=html(imageUrl+'#imgIndex=0').replace('<style>','<style>@font-face{font-family:UnusedArchiveFont;src:url(https://example.test/unused.woff2)}.unused-icon{background:url(https://example.test/unused.png)}').replace('<img src=', '<p style="height:1800px">延迟加载前的正文</p><img loading="lazy" src=').replace('</body>','<img src="" style="display:none"><div style=\'background-image:url("");display:none\'></div><link rel="stylesheet" href=""></body>');
+    const context=await browser.newContext();await context.route('**/*',route=>route.fulfill({status:200,contentType:route.request().url()===imageUrl?'image/gif':'text/html; charset=utf-8',body:route.request().url()===imageUrl?gif:capturedHtml}));
+    const page=await context.newPage();await page.goto(source);await page.locator('#js_content img').scrollIntoViewIfNeeded();await page.evaluate(()=>document.querySelector('#js_content img').decode());
     const cdp=await context.newCDPSession(page),snapshot=await cdp.send('Page.captureSnapshot',{format:'mhtml'});await context.close();
     const descriptor=await receiveImport([Buffer.from(snapshot.data)],'测试.mhtml',f.directory);
     const imported=await readBrowserImport(browser,descriptor,source,f.directory);
     assert.equal(imported.resources.get(imageUrl).bytes.equals(gif),true);assert.doesNotMatch(imported.html,/<script|onload=/i);
+    assert.doesNotMatch(imported.html,/<link[^>]+href="cid:/i);assert.match(imported.html,/max-width:\s*680px/);
+    assert.doesNotMatch(imported.html,new RegExp('<img[^>]*src="'+source+'"'));
     await browser.close();
     store=new Store(path.join(f.temp,'jobs.sqlite'));const old=store.enqueue('https://mp.weixin.qq.com/s/old-import').job;
     const migrations=[{from:old.url,to:source,type:'wechat_account_migration'}];store.update(old.id,{status:'needs_manual',metadata:{migrations,resolved_url:source,requires_verification:true}});
@@ -58,6 +61,20 @@ test('内嵌 HTML 导入；阻止错误链接、验证页和本地文件资源',
     const gate=await receiveImport([Buffer.from('<title>访问验证</title><div class="weui-msg">环境异常 去验证</div>')],'gate.html',f.directory);
     await assert.rejects(archiveArticle({id:randomUUID(),url:source,metadata:{browser_import:gate}},{archiveDir:path.join(f.temp,'archives')},()=>{},{importDirectory:f.directory}),/没有可识别的文章正文/);
   } finally {await browser?.close();await f.cleanup();}
+});
+
+test('导入仍报告正文缺图和已使用但未保存的字体',{timeout:60000},async()=>{
+  const f=await fixture();
+  try {
+    const savedHtml=html(imageUrl).replace('<style>', '<style>@font-face{font-family:MissingArticleFont;src:url(https://example.test/used.woff2)}@font-face{font-family:UnusedArchiveFont;src:url(https://example.test/unused.woff2)}#js_content{font-family:MissingArticleFont,serif}');
+    const descriptor=await receiveImport([Buffer.from(savedHtml)],'缺资源.html',f.directory);
+    const result=await archiveArticle({id:randomUUID(),url:source,metadata:{browser_import:descriptor}},{archiveDir:path.join(f.temp,'archives'),screenshotScale:1},()=>{},{importDirectory:f.directory});
+    assert.equal(result.status,'partial');assert.equal(result.metadata.failed_images.length,1);
+    assert.ok(result.metadata.failed_resources.includes('https://example.test/used.woff2'));
+    assert.ok(!result.metadata.failed_resources.includes('https://example.test/unused.woff2'));
+    assert.match(await readFile(path.join(result.outputDir,result.metadata.file_names.markdown),'utf8'),/mmbiz\.qpic\.cn\/import-fixture\.gif/);
+    assert.equal(result.metadata.offline_check.missingImages,1);
+  } finally {await f.cleanup();}
 });
 
 test('导入文件大小、类型、空内容和内容变化校验',async()=>{

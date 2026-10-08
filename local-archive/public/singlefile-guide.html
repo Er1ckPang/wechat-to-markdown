@@ -1,0 +1,94 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SingleFile 单文件网页保存与导入指南 · wx2md Local</title><style>
+:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f4ef;color:#243429;font:15px/1.85 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}main{max-width:940px;margin:auto;padding:35px 30px 70px}a{color:#276448}h1{font-size:30px;line-height:1.4}h2{margin-top:35px;font-size:22px}code{background:#e8eee4;border-radius:4px;padding:2px 5px;overflow-wrap:anywhere}pre{background:#223a2b;color:#eaf2e8;border-radius:8px;padding:18px;overflow:auto}pre code{background:none;overflow-wrap:normal;padding:0}table{width:100%;border-collapse:collapse;background:#fff}td,th{border:1px solid #dce3d9;text-align:left;padding:10px}th{background:#e9eee5}li{margin:9px 0}nav{display:flex;gap:20px;border-bottom:1px solid #dce3d9;padding-bottom:15px}@media(max-width:600px){main{padding:24px 18px}h1{font-size:25px}table{font-size:13px}}
+</style><style>a{overflow-wrap:anywhere}table{table-layout:fixed;overflow-wrap:anywhere}nav{flex-wrap:wrap}@media(max-width:600px){td,th{padding:8px 6px}}</style></head><body><main><nav><a href="guide.html">完整使用指南</a><a href="mac-guide.html">Mac 安装</a><a href="sites-guide.html">支持的网站</a><a href="http://127.0.0.1:17880/">打开本地工具</a></nav><h1>SingleFile 单文件网页保存与导入指南</h1>
+<p>适用于 wx2md Local v1.3.0.p，2026-10-08。日常浏览器能够正常显示文章时，可以直接保存内嵌 HTML，再导入本地工具生成 MD、本地原图和两种无损长图。</p>
+<h2>本次 MHTML 提示的原因</h2>
+<p>这次提交的 MHTML 已经包含 5 张正文图片。旧导入流程未正确匹配图片地址末尾的 <code>#imgIndex</code>，使 MD 错报下载失败；另外，页面未使用的图标样式和空资源地址触发了多余请求。导入器已修复地址匹配、延迟图片读取、MHTML 内置 CSS 的回放和无关资源清理。</p>
+<p><strong>已有文件不必重新保存</strong>：打开保存记录，找到原导入任务，点击“重新保存”，即可使用同一个本地文件再次生成归档。原保存目录会保留，新输出以本次记录里的链接为准。页面刷新只更新界面；后台必须载入修复后的代码，当前电脑已更新服务。</p>
+<p>本次真实文件重试已经完成：5 张原图与 MHTML 中的字节完全一致，MD 使用 <code>images/</code> 本地引用，HTML 断网缺图数为 0，未保存资源数为 0；手机与电脑长图均完整且接缝差异为 0。</p>
+<p>资源总数不等于正文缺图数。<code>metadata</code> 分别记录 MD 图片失败、页面资源失败和断网正文检查；确实未包含在源文件中的图片或正在使用的字体仍会提示。导入时不会联网补下载。</p>
+<h2>1. 安装扩展</h2>
+<ul>
+<li>Edge：<a href="https://microsoftedge.microsoft.com/addons/detail/singlefile/efnbkdcfmcmnhlkaijjjmhjjgladedno">Microsoft Edge 扩展商店的 SingleFile</a>。</li>
+<li>Chrome（Windows / Mac）：<a href="https://chromewebstore.google.com/detail/singlefile/mpiodijhokgodhhofbcjdecpffjipkle">Chrome 应用商店的 SingleFile</a>。</li>
+<li>其他浏览器：<a href="https://github.com/gildas-lormeau/SingleFile">SingleFile 官方项目与安装入口</a>。</li>
+</ul>
+<p>安装后在浏览器“扩展”菜单固定 SingleFile 图标。回到文章标签页，刷新一次，让扩展在该页面可用。</p>
+<h2>2. 设置保存格式与图片</h2>
+<p>右键工具栏的 SingleFile 图标，打开“选项 / Options”。不同商店版本的中文名称可能略有区别，下表列出当前官方选项及英文对应。</p>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>建议设置</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>文件格式 / File format</td>
+<td>选择 <strong>HTML</strong></td>
+<td>本工具直接读取普通内嵌 HTML；不要选择 ZIP 或自解压 ZIP。</td>
+</tr>
+<tr>
+<td>延迟加载的内容 / Deferred content</td>
+<td>勾选“保存滚动时加载的内容 / save content loaded while scrolling”</td>
+<td>保存阅读过程中才加载的图片。</td>
+</tr>
+<tr>
+<td>延迟加载的内容</td>
+<td>图片仍遗漏时，勾选“模拟滚动 / simulate scrolling”；将最长空闲时间提高到 3000–5000 毫秒再试</td>
+<td>给图片加载留出时间；保存前仍建议手动滚到底。</td>
+</tr>
+<tr>
+<td>图片 / Images</td>
+<td>图片缩小系数 / image reduction factor 设为 <strong>1</strong></td>
+<td>保留采集到的图片尺寸，不主动缩小。</td>
+</tr>
+<tr>
+<td>图片</td>
+<td>取消“将重复图片分组到一起 / group duplicate images together”</td>
+<td>让内嵌图片更方便被 MD 导入器逐张提取。</td>
+</tr>
+<tr>
+<td>网络 / Network → 拦截资源文件 / blocked resources</td>
+<td><strong>图片、样式表、字体不勾选</strong></td>
+<td>这里的勾选代表阻止保存该类资源。脚本保持默认阻止。</td>
+</tr>
+<tr>
+<td>网络</td>
+<td>如保存后仍有防盗链图片缺失，勾选跨域请求失败后传递 Referer 的选项</td>
+<td>这是官方 FAQ 对部分缺图问题的建议；原页面也无法加载的图片需先恢复正常访问。</td>
+</tr>
+<tr>
+<td>目标 / Destination</td>
+<td>保存到本地文件系统 / save to filesystem</td>
+<td>将单个 <code>.html</code> 下载到本机。</td>
+</tr>
+</tbody></table>
+<p>通常不需要关闭“移除未使用的样式 / 字体”。这些选项清理没有呈现的资源，不应删除正在使用的正文图片或字体。图片清晰度取决于网页实际提供的原图；扩展不能恢复源图片没有的细节。</p>
+<h2>3. 保存完整文章</h2>
+<ol>
+<li>在日常 Edge / Chrome 打开文章的<strong>实际链接</strong>，正常完成登录或验证。迁移文章点击新文章链接，确认标题和正文已经显示。</li>
+<li>逐步滚动到正文底部，等待每张图片加载完成。需要展开的正文先展开，然后回到顶部。</li>
+<li><strong>点击 SingleFile 工具栏图标</strong>，或右键页面选择“使用 SingleFile 保存页面”。保存当前完整页面；若选中了文字，先取消选区。</li>
+<li>等图标显示完成、浏览器下载结束，取得一个 <code>.html</code> 文件。此操作使用扩展保存；浏览器的 <code>Ctrl+S / ⌘S</code> 是另一个保存入口。</li>
+<li>临时断开网络，双击这个 HTML，检查文章开头、结尾、图片、表格和排版。检查完成后恢复联网；单文件保存是否完整，以断网查看结果为准。</li>
+</ol>
+<p>若打开的是空白页或验证码页，应先在原文章标签页恢复正常正文，再保存。如果 HTML 缺图，回原网页确认该图已加载，核对上表设置，再重新点击扩展图标保存。</p>
+<h2>4. 导入本地工具</h2>
+<ol>
+<li>打开 <a href="http://127.0.0.1:17880/">本地工具首页</a>，展开“采集浏览器验证超时？从普通浏览器导入”。也可从原失败记录的“从普通浏览器导入”进入，沿用原任务和迁移信息。</li>
+<li>填写<strong>刚才实际保存的文章链接</strong>，迁移文章填新链接。</li>
+<li>选择 SingleFile 下载的 <code>.html</code>（最多 64 MB），点击“导入并生成归档”。不要选择普通“完整网页”的 HTML 加资源文件夹。</li>
+<li>在保存记录中打开本次输出：标题命名的 MD、内嵌 HTML、手机 PNG、电脑 PNG、metadata 和 <code>images/</code>。</li>
+</ol>
+<p>移动或备份 MD 时连同 <code>images/</code> 一起保存；HTML 可以独立携带。MD 保留可编辑结构和本地图片，精确字体、颜色和网页布局以 HTML 为准。导入不能恢复源文件未保存的内容，真实缺资源仍会列入提示。</p>
+<h2>Windows 继续使用 MHTML</h2>
+<p>在正常显示完整正文的 Edge / Chrome 中，滚动加载所有图片后按 <code>Ctrl+S</code>。若保存类型提供“网页，单个文件”，选择它并保存为 <code>.mhtml / .mht</code>。先断网双击检查，再导入本地工具。若只有“完整网页”或“仅 HTML”，使用上面的 SingleFile 方式。</p>
+<h2>官方参考</h2>
+<ul>
+<li><a href="https://github.com/gildas-lormeau/SingleFile">SingleFile 项目说明及商店入口</a>。</li>
+<li><a href="https://github.com/gildas-lormeau/SingleFile/blob/master/faq.md">官方 FAQ：资源保存与缺图排障</a>。</li>
+<li><a href="https://github.com/gildas-lormeau/SingleFile/blob/master/src/ui/pages/options.html">当前选项界面</a>与<a href="https://github.com/gildas-lormeau/SingleFile/blob/master/_locales/zh_CN/messages.json">中文标签</a>。</li>
+</ul>
+</main></body></html>

@@ -1758,3 +1758,15 @@ browser-import.mjs 使用 Chromium 原生 MHTML 解析、Page.getResourceTree / 
 独立生产接口验证：匿名403、错误类型400、原始文件上传202，生成completed；再次保存completed；原GIF逐字节一致，内嵌HTML断网零缺图，手机和电脑PNG全行覆盖且接缝差异0。实际首页390／768／1100宽度无溢出。旧两条TargetClosed记录保留原始诊断备份后改为needs_manual，未新增采集任务；真实迁移记录的导入入口预填新链接、保留迁移链、没有打开验证窗口。私有原始证据在logs/import-api-probe和logs/migration-probe，源码ZIP和Git不含这些内容。
 
 保留唯一当前开发目录wx2md-local-v1.3.0.p，v1.2.0.p及更早版本仅保留历史压缩包；v1.0.0.p tag保持不变。源码包采用git archive生成，不包含data、archives、logs、依赖安装目录或生成dist。实际文章的微信验证仍交由用户后续手动处理；普通浏览器导入是备用路径，不声称真实验证码已通过。
+
+### 实际 MHTML 导入缺图与资源误报修复，SingleFile 专项指南
+
+用户在普通浏览器成功保存 MHTML 后，导入仍提示5张MD图片失败、182个页面资源未保存。通过原文件 MIME 资源检查确认5张图片全部在文件中，用户保存方法正确。Chromium 的资源树使用无片段的地址，而正文图片带 `#imgIndex`；原缓存按完整字符串查找，导致无法命中。新增 importedResourceKey，仅去掉HTTP／HTTPS／CID资源地址片段，保留查询参数；在读取资源树前加载文件中已保存的延迟图片。
+
+MHTML将内置CSS序列化为CID样式表链接，普通HTTP页面回放时不能直接加载该协议。将已保存的CID CSS改为内嵌style，保留media属性，恢复原始排版和MD结构判断。清理空src／href、MHTML写成主文档地址的空图片，以及内联CSS中的空图片URL，避免把HTML文章地址作为图片请求。只在浏览器导入流程启用SingleFile的隐藏元素、未使用样式和未使用字体清理；直接网络采集沿用原设置。没有通过过滤失败数组来取消提示。
+
+回归覆盖片段地址、视口外延迟图片、CID样式、未使用图标和字体、空资源，以及真正缺失的正文图片和已使用字体。真实缺资源仍显示partial、保留MD原链接并记录断网缺图。Windows完整35项回归通过；最后空CSS地址修复后4项导入回归再次通过，上游45项测试与TypeScript／Vite构建通过，本地SingleFile组件构建通过。最终原生平台结果另记录在发布清单。
+
+重启当前服务后，沿用用户原MHTML和原导入任务重试，completed，无MD缺图和页面资源提示。5张原图与MHTML MIME原字节逐一相等；HTML断网5张图片全部显示、可打开原图，无外部图片／样式；手机和电脑PNG均覆盖全部行，最大接缝差异0。未重新打开微信验证码窗口，未修改并发4／showBrowser:false配置。私有文件、URL和诊断证据仅保存在本机logs及data，不上传Git。
+
+新增SINGLEFILE_GUIDE.md及singlefile-guide.html，主指南和README链接可直接进入。核对官方仓库、FAQ、当前选项界面及中英文标签，提供Edge／Chrome安装入口、普通HTML格式、延迟加载、图片缩小系数1、取消重复图片分组、保留图片／CSS／字体、防盗链Referer排障、断网检查和导入步骤。明确工具只能导入源文件已有资源，MD为可编辑结构，HTML保存静态样式；原MHTML文件可以直接重新保存，不要求用户重做文件。

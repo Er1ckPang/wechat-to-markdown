@@ -11,6 +11,7 @@
 
 - [完整开发记录](DEVELOPMENT_LOG.md)：需求演进、源码归属、版本变化、截图问题与修复、验证证据、开发入口和可见会话记录。
 - [图文使用指南](local-archive/public/guide.html)：手动保存、文件说明、飞书接入、版本切换和 Mac 启动。
+- [SingleFile 保存与导入指南](local-archive/SINGLEFILE_GUIDE.md)：扩展安装、HTML 格式、延迟图片、字体和断网检查；已有 MHTML 导入可直接重试。
 - [Mac 安装与启动指南](local-archive/MAC_GUIDE.md)：Node 安装、首次安装、四个启动文件、诊断、迁移文章与排障。
 - [多网站保存指南](local-archive/SITES_GUIDE.md)：支持链接、消息触发、目录、排版、访问限制、验证范围与新增适配器。
 - [版本记录](local-archive/CHANGELOG.txt)：历史功能版本和当前基线的对应关系。

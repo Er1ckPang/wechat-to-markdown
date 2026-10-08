@@ -11,3 +11,5 @@ MD 图片位于同级 `images/`；HTML 图片内嵌，手机和电脑长图各�
 首页显示摘要和活跃任务；完整记录在 [保存记录页](http://127.0.0.1:17880/records.html)，支持分类、组合筛选、排序、分页和跳转，最多查询10000条匹配结果。MD／HTML保留原始动图；长图固定首帧以保证接缝一致。
 
 采集浏览器微信验证超时时，在日常浏览器正常打开文章、滚动加载图片后保存 MHTML，或用 SingleFile 保存内嵌 HTML。首页展开“从普通浏览器导入”，填写实际链接并选择单文件（最多64 MB），后台断网生成同样输出。失败记录的入口可继续原任务；迁移文章填新链接。详见[导入指南](public/guide.html#browser-import)。导入副本位于私有 `data/browser-imports/`，普通完整网页的资源文件夹不支持直接导入。
+
+SingleFile 的安装、HTML 格式、延迟加载、原图尺寸、字体保存和断网检查见 [SingleFile 专项指南](SINGLEFILE_GUIDE.md) / [图文页面](public/singlefile-guide.html)。MHTML 图片地址带 `#imgIndex`、延迟图片和内置 CSS 已正确处理；已有导入任务点击“重新保存”即可使用保存的源文件重试，真实缺资源继续提示。

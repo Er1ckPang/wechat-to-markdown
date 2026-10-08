@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { marked } from '../vendor/marked.mjs';
-const guides = [['MAC_GUIDE.md', 'mac-guide.html', 'Mac 安装与启动指南'], ['SITES_GUIDE.md', 'sites-guide.html', '多网站文章保存指南']];
+const guides = [['MAC_GUIDE.md', 'mac-guide.html', 'Mac 安装与启动指南'], ['SITES_GUIDE.md', 'sites-guide.html', '多网站文章保存指南'], ['SINGLEFILE_GUIDE.md', 'singlefile-guide.html', 'SingleFile 单文件网页保存与导入指南']];
 for (const [source, output, title] of guides) {
 const markdown = await readFile(new URL('../' + source, import.meta.url), 'utf8');
 const body = marked.parse(markdown).replace(/href="MAC_GUIDE\.md"/g, 'href="mac-guide.html"').replace(/href="public\/guide\.html/g, 'href="guide.html');

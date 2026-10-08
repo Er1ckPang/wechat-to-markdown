@@ -11,7 +11,7 @@ import { articleToMarkdown } from './markdown.mjs';
 import { linkLocalImages } from './html.mjs';
 import { captureScreenshot } from './screenshot.mjs';
 import { resolveArticleLink, InvalidArticleError, NeedsManualError, evaluateStable, waitForReadableArticle } from './link-state.mjs';
-import { readBrowserImport } from './browser-import.mjs';
+import { readBrowserImport, importedResourceKey } from './browser-import.mjs';
 export { InvalidArticleError, NeedsManualError } from './link-state.mjs';
 
 const singleFilePath = fileURLToPath(new URL('../vendor/singlefile.js', import.meta.url));
@@ -85,7 +85,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       const url = route.request().url();
       if (imported) {
         if (url === sourceUrl && route.request().isNavigationRequest()) return route.fulfill({status:200,contentType:'text/html; charset=utf-8',body:imported.html});
-        const saved = imported.resources.get(url);
+        const saved = imported.resources.get(importedResourceKey(url));
         if (saved) return route.fulfill({status:200,contentType:saved.type,body:saved.bytes});
         if (stageDirectory && url.startsWith(pathToFileURL(stageDirectory + path.sep).href)) return route.continue();
         if (['image','stylesheet','font'].includes(route.request().resourceType())) failedResources.add(url);
@@ -176,7 +176,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
         if (!match) throw new Error('无效的内嵌资源。');
         return { bytes: Buffer.from(match[2] ? match[3] : decodeURIComponent(match[3]), match[2] ? 'base64' : 'utf8'), type: match[1], status: 200 };
       }
-      const cached = await cache.get(url);
+      const cached = await cache.get(imported ? importedResourceKey(url) : url);
       if (cached && cached.bytes.length) return cached;
       if (imported) { failedResources.add(url); throw new Error('保存的网页文件未包含这个资源。请滚动加载图片后重新保存为单文件网页。'); }
       if (redirects > 4) throw new Error('资源重定向次数过多。');
@@ -236,11 +236,11 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       } catch (error) { return { error: error.message }; }
     });
     await page.addScriptTag({ path: singleFilePath });
-    const html = await page.evaluate(async resolvedSourceUrl => {
+    const html = await page.evaluate(async ({resolvedSourceUrl,imported}) => {
       const data = await singlefile.getPageData({
         url: resolvedSourceUrl, filenameTemplate: 'original.html', filenameMaxLength: 190,
         blockScripts: true, blockVideos: true, blockAudios: true, blockFonts: false,
-        removeFrames: true, removeHiddenElements: false, removeUnusedStyles: false,
+        removeFrames: true, removeHiddenElements: imported, removeUnusedStyles: imported, removeUnusedFonts: imported,
         compressHTML: false, compressContent: false, loadDeferredContent: false,
         saveOriginalURLs: true, insertMetaCSP: true, insertCanonicalLink: true, insertSingleFileComment: true,
         maxResourceSizeEnabled: true, maxResourceSize: 25, networkTimeout: 20000,
@@ -254,7 +254,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
         }
       });
       return data.content;
-    }, resolvedSourceUrl);
+    }, {resolvedSourceUrl,imported:!!imported});
     if (!html || !html.includes('data-wx2md-body')) throw new Error('离线 HTML 未包含文章正文。');
     const embeddedHtml = await page.evaluate(linkLocalImages, { html, mapping: embeddedMapping, embedded: true });
     if (embeddedHtml.linked < article.images.filter(image => mapping[image.src]).length) warnings.push('部分 HTML 图片未能替换为下载到的原图。');
