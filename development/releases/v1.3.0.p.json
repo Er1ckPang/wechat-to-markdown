@@ -1,0 +1,15 @@
+{
+  "release": "v1.3.0.p",
+  "date": "2026-10-08",
+  "branch": "feat/link-health-batch-parallel",
+  "baseBranch": "feat/multi-site-archive",
+  "baseRelease": "v1.2.0.p",
+  "baseCommit": "245eb10713701b765a4625b971b3b2d468ec967b",
+  "displayVersion": "1.3.0.p",
+  "npmVersion": "1.3.0-p",
+  "features": ["invalid-link notices", "WeChat migration following", "100-link durable batches", "configurable bounded concurrency", "wide SVG and code reflow"],
+  "localValidation": {"localTestsPassed": 26, "upstreamTestsPassed": 45, "upstreamBuild": "passed"},
+  "liveValidation": {"attentionArticle": "completed; 14 offline images; both PNG coverage checks passed", "migrationExample": "new link detected and followed; destination requires WeChat verification in current network"},
+  "nativeValidation": {"status": "pending"},
+  "privateRecords": "local-archive/logs/failure-analysis/ and local-archive/data/; excluded from Git and source ZIP"
+}

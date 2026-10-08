@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 let token = '', initialized = false, latest = null, lastJobs = '', refreshing = false, toastTimer;
-const statusNames = { pending: '等待保存', processing: '正在保存', completed: '保存完成', partial: '已保存 · 有提示', failed: '保存失败', needs_manual: '需要人工确认' };
+const statusNames = { pending: '等待保存', processing: '正在保存', completed: '保存完成', partial: '已保存 · 有提示', invalid: '链接已失效', failed: '保存失败', needs_manual: '需要人工确认' };
 const feishuNames = { disabled: '飞书未启用', unconfigured: '飞书待配置', connecting: '飞书连接中', connected: '飞书已连接', reconnecting: '飞书正在重连', failed: '飞书连接失败', idle: '飞书待连接' };
 function toast(text, error = false) { $('toast').textContent = text; $('toast').className = error ? 'error' : ''; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').hidden = true, 6500); }
 async function api(url, data) {
@@ -17,10 +17,14 @@ function renderJobs(jobs) {
     const card = element('article', '', 'job'); card.dataset.jobId = job.id;
     const header = element('div', '', 'job-header');
     header.append(element('h3', job.title || '文章 · ' + new URL(job.url).hostname + new URL(job.url).pathname));
-    const stateClass = ['failed', 'needs_manual'].includes(job.status) ? 'error' : job.status === 'partial' ? 'warning' : ['pending', 'processing'].includes(job.status) ? 'waiting' : '';
+    const stateClass = ['failed', 'needs_manual', 'invalid'].includes(job.status) ? 'error' : job.status === 'partial' ? 'warning' : ['pending', 'processing'].includes(job.status) ? 'waiting' : '';
     header.append(element('span', statusNames[job.status] || job.status, 'badge ' + stateClass)); card.append(header);
     const source = { manual: '手动保存', feishu: '飞书消息', 'message-test': '消息入口测试', 'user-example': '示例文章' }[job.source] || job.source;
-    card.append(element('div', `${new Date(job.created_at).toLocaleString('zh-CN')} · ${source}${job.metadata?.site_name ? ' · ' + job.metadata.site_name : ''}${job.metadata?.account ? ' · ' + job.metadata.account : ''}${job.metadata ? ' · ' + (job.metadata.tool_version ? 'v' + job.metadata.tool_version : '旧版归档') : ''}`, 'job-meta'));
+    card.append(element('div', `${new Date(job.created_at).toLocaleString('zh-CN')} · ${source}${job.metadata?.site_name ? ' · ' + job.metadata.site_name : ''}${job.metadata?.account ? ' · ' + job.metadata.account : ''}${job.metadata?.tool_version ? ' · v' + job.metadata.tool_version : job.metadata?.format_version ? ' · 旧版归档' : ''}`, 'job-meta'));
+    if (job.metadata?.migrations?.length) {
+      const note = element('p', job.output_dir ? '公众号已迁移，已自动转至新链接保存。' : '公众号已迁移，已找到新链接；请查看当前保存提示。', 'migration-note');
+      const link = element('a', '新文章 ↗'); link.href = job.metadata.resolved_url; link.target = '_blank'; link.rel = 'noopener'; note.append(' ', link); card.append(note);
+    }
     if (job.status === 'processing') card.append(element('div', job.stage + '…', 'stage'));
     if (job.error) card.append(element('p', job.error, 'error-text'));
     const actions = element('div', '', 'job-actions');
@@ -59,16 +63,20 @@ async function refresh() {
     latest = await api('/api/status');
     $('service-version').textContent = `正在运行 · v${latest.version}`;
     $('runtime-root').textContent = latest.root;
-    $('service-text').textContent = latest.busy ? '后台正在保存文章' : '本地工具运行中';
+    $('service-text').textContent = latest.busy ? `后台正在保存 ${latest.worker.active} 篇文章` : '本地工具运行中';
     $('feishu-summary').textContent = feishuNames[latest.feishu.state] || latest.feishu.state;
     $('feishu-state').textContent = feishuNames[latest.feishu.state] || latest.feishu.state;
-    const pending = latest.jobs.filter(j => j.status === 'pending').length;
-    $('queue-note').textContent = pending ? `${pending} 篇等待保存` : '记录自动更新';
+    const pending = latest.stats.pending || 0;
+    $('queue-note').textContent = `${pending} 篇等待 · 并发 ${latest.worker.active}/${latest.worker.concurrency}` + (latest.worker.pausedHosts.length ? ' · 网站限流，等待恢复' : '');
+    const invalidCount = latest.stats.invalid || 0;
+    $('link-alerts').hidden = !invalidCount;
+    $('link-alerts').textContent = `有 ${invalidCount} 篇文章链接已失效，未保存错误页面。请查看对应记录中的原因；链接恢复后可重新保存。`;
     $('connection-detail').className = 'connection-detail' + (latest.feishu.error ? ' error' : '');
     $('connection-detail').textContent = latest.feishu.error || (latest.feishu.lastEvent ? `${new Date(latest.feishu.lastEvent.at).toLocaleTimeString('zh-CN')} · ${latest.feishu.lastEvent.result}${latest.feishu.lastEvent.senderId ? ' · 发送人 ' + latest.feishu.lastEvent.senderId : ''}` : '接通后，这里会显示最后一条消息的接收情况。');
     $('secret-note').textContent = latest.config.feishu.hasSecret ? '凭据已在本机保存；留空会保留当前 Secret。' : '';
     if (!initialized) {
       $('archive-dir').value = latest.config.archiveDir; $('screenshot-scale').value = latest.config.screenshotScale || 3; $('show-browser').checked = latest.config.showBrowser;
+      $('concurrency').value = latest.config.concurrency;
       $('app-id').value = latest.config.feishu.appId; $('feishu-enabled').checked = latest.config.feishu.enabled; $('allowed-senders').value = latest.config.feishu.allowedSenders.join(', ');
       initialized = true;
     }
@@ -85,7 +93,7 @@ $('save').onclick = () => submit($('save'), async () => {
   toast(duplicate === result.results.length ? '这些文章已在保存记录中。' : `已加入 ${result.results.length - duplicate} 篇文章${duplicate ? `，跳过 ${duplicate} 篇重复文章` : ''}。`);
   $('links').value = '';
 });
-$('settings-form').onsubmit = event => { event.preventDefault(); submit(event.submitter, async () => { await api('/api/config', { archiveDir: $('archive-dir').value, screenshotScale: Number($('screenshot-scale').value), showBrowser: $('show-browser').checked }); toast('保存设置已更新。'); }); };
+$('settings-form').onsubmit = event => { event.preventDefault(); submit(event.submitter, async () => { await api('/api/config', { archiveDir: $('archive-dir').value, screenshotScale: Number($('screenshot-scale').value), concurrency: Number($('concurrency').value), showBrowser: $('show-browser').checked }); toast('保存设置已更新。'); }); };
 $('feishu-form').onsubmit = event => { event.preventDefault(); submit(event.submitter, async () => {
   await api('/api/config', { feishu: { appId: $('app-id').value, appSecret: $('app-secret').value, allowedSenders: $('allowed-senders').value, enabled: $('feishu-enabled').checked } });
   $('app-secret').value = ''; toast('飞书设置已保存，请查看连接状态。');

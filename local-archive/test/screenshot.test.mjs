@@ -7,6 +7,25 @@ import path from 'node:path';
 import os from 'node:os';
 import { captureScreenshot } from '../src/screenshot.mjs';
 
+test('超宽公式SVG等比例缩放，嵌套不换行代码完整换行，两种长图保持全部矢量与结尾', {timeout:120000},async()=>{
+ const directory=await mkdtemp(path.join(os.tmpdir(),'wx2md-vector-test-'));const browser=await launchBrowser();
+ try{
+  for(const [stem,viewport]of Object.entries({mobile:{width:432,height:768},desktop:{width:1280,height:720}})){
+   const page=await browser.newPage({viewport,deviceScaleFactor:2});
+   const code='  const long_name = '+ 'long_identifier_'.repeat(50)+';';
+   await page.setContent(`<style>html,body{margin:0}.rich_media_area_primary_inner{max-width:680px;width:calc(100% - 40px);margin:auto}#js_content{overflow:hidden}pre{padding:16px}pre code,pre span{white-space:pre!important}</style><main class="rich_media_area_primary_inner"><h1 id="activity-name">公式测试</h1><div id="js_content"><section data-formula="a+b" style="overflow:hidden"><svg id="wide-formula" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 200" style="width:2000px;height:200px;max-width:300%!important"><rect width="2000" height="200" fill="#235e43"/></svg></section><pre><code><span>${code}</span></code></pre><p id="late-layout" style="height:900px">中间段落</p><p id="end">全部正文结尾</p></div></main><script>setTimeout(()=>document.querySelector('#late-layout').style.height='1100px',250)</script>`);
+   const result=await captureScreenshot(page,directory,[],2,()=>{},{stem,fitToViewport:true,cropToArticle:true,singleFile:true});
+   assert.equal(result.check.complete,true);assert.equal(result.check.maxOverlapDifference,0);assert.equal(result.check.layout.fittedVectors,1);
+   assert.equal(await page.locator('#late-layout').evaluate(e=>e.getBoundingClientRect().height),1100);
+   const size=await page.locator('#wide-formula').evaluate(e=>({width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,viewBox:e.getAttribute('viewBox'),page:document.documentElement.scrollWidth,content:document.querySelector('#js_content').clientWidth}));
+   assert.ok(size.width<=size.content);assert.ok(Math.abs(size.width/size.height-10)<0.05);assert.equal(size.viewBox,'0 0 2000 200');assert.equal(size.page,viewport.width);
+   assert.equal(await page.locator('pre').innerText(),code);assert.equal(await page.locator('pre span').evaluate(e=>getComputedStyle(e).whiteSpace),'pre-wrap');
+   assert.ok((await page.locator('#end').evaluate(e=>e.getBoundingClientRect().bottom))*2<=result.check.pixelHeight);
+   await page.close();
+  }
+ }finally{await browser.close();if(path.dirname(directory)===os.tmpdir()&&path.basename(directory).startsWith('wx2md-vector-test-'))await rm(directory,{recursive:true,force:true});}
+});
+
 test('逐屏拼接保留每段颜色和底部、去除悬浮作者栏、保留横向内容', {timeout:120000},async()=>{
  const directory=await mkdtemp(path.join(os.tmpdir(),'wx2md-pixel-test-'));
  const browser=await launchBrowser();

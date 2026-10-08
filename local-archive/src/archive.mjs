@@ -10,8 +10,9 @@ import { extractArticle } from './extract.mjs';
 import { articleToMarkdown } from './markdown.mjs';
 import { linkLocalImages } from './html.mjs';
 import { captureScreenshot } from './screenshot.mjs';
+import { resolveArticleLink, inspectLinkState, InvalidArticleError, NeedsManualError, evaluateStable } from './link-state.mjs';
+export { InvalidArticleError, NeedsManualError } from './link-state.mjs';
 
-export class NeedsManualError extends Error { name = 'NeedsManualError'; }
 const singleFilePath = fileURLToPath(new URL('../vendor/singlefile.js', import.meta.url));
 const packageInfo = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const toolVersion = packageInfo.releaseVersion || packageInfo.version;
@@ -64,8 +65,8 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
   const captureScale = [1, 2, 3, 4].includes(Number(config.screenshotScale)) ? Number(config.screenshotScale) : 3;
   const browser = await launchBrowser(config);
   const warnings = []; const failedResources = new Set(); const failedImages = []; const auxiliaryRequests = new Set();
-  let context, stageDirectory, finalDirectory;
-  const maxTime = setTimeout(() => browser.close().catch(() => {}), 300000);
+  let context, stageDirectory, finalDirectory, linkDetails;
+  let maxTime = setTimeout(() => browser.close().catch(() => {}), 300000);
   try {
     context = await browser.newContext({ viewport: { width: site.platform === 'wechat' ? 432 : 1280, height: 768 }, deviceScaleFactor: captureScale, locale: 'zh-CN', timezoneId: 'Asia/Shanghai', colorScheme: 'light', serviceWorkers: 'block' });
     let page = await context.newPage();
@@ -87,9 +88,9 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       }
     });
     onStage('打开文章');
-    const response = await page.goto(sourceUrl, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(async error => {
-      if (!(await page.evaluate(inspectArticlePage, site)).ready) throw error;
-    });
+    const { response, migrations } = await resolveArticleLink(page, sourceUrl, site, config, onStage, { fixtureOrigin });
+    linkDetails = { link_state: migrations.length ? 'migrated' : 'available', original_url: job.url,
+      resolved_url: migrations.at(-1)?.to || page.url(), migrations };
     if (response && response.status() >= 400 && !config.showBrowser) {
       throw new NeedsManualError(`${site.label}返回 HTTP ${response.status()}，未保存错误页面。请确认文章可访问，或启用“显示采集浏览器”后重试。`);
     }
@@ -102,10 +103,15 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
         }
       } catch { /* The body check below classifies login pages without saving them. */ }
     }
-    if (await page.evaluate(expandPublicArticle, site)) await sleep(500);
-    let info = await page.evaluate(inspectArticlePage, site);
+    if (await evaluateStable(page, expandPublicArticle, site)) await sleep(500);
+    let info = await evaluateStable(page, inspectArticlePage, site);
     const deadline = Date.now() + (config.showBrowser ? 90000 : 12000);
-    while (!info.ready && Date.now() < deadline) { await sleep(500); info = await page.evaluate(inspectArticlePage, site); }
+    while (!info.ready && Date.now() < deadline) {
+      const state = await evaluateStable(page, inspectLinkState, { platform: site.platform, httpStatus: response?.status() || 200 });
+      if (state.state === 'invalid') throw new InvalidArticleError(state.message, { reason: state.reason, original_url: sourceUrl, resolved_url: page.url(), migrations });
+      if (state.state === 'throttled') { const error = new NeedsManualError(state.message); error.retryAfterMs = 60000; throw error; }
+      await sleep(500); info = await evaluateStable(page, inspectArticlePage, site);
+    }
     if (!info.ready) throw new NeedsManualError(`无法读取${site.label}的单篇文章正文。页面可能需要登录、验证或没有可识别的文章。可启用“显示采集浏览器”后重试；不保存登录或验证页面。`);
     if (!fixtureOrigin) {
       try {
@@ -266,6 +272,10 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
     const profiles = { mobile: { width:432, height:768, ratio:'9:16', label:'手机' }, desktop: { width:1280, height:720, ratio:'16:9', label:'电脑' } };
     const screenshotProfiles = {};
     const screenshotFiles = [];
+    onStage('等待长图生成资源');
+    clearTimeout(maxTime); // Waiting for another job's capture must not consume this job's timeout.
+    await (testOptions.withCaptureSlot || (callback => callback()))(async () => {
+    maxTime = setTimeout(() => browser.close().catch(() => {}), 300000);
     for (const [name, profile] of Object.entries(profiles)) {
       onStage(`按${profile.label}阅读窗口排版并检查长图接缝`);
       const capturePage = await context.newPage();
@@ -279,6 +289,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
         screenshotFiles.push(...captured.files);
       } finally { await capturePage.close(); }
     }
+    });
     if (!offlineCheck.bodyPresent) throw new Error('离线检查未找到正文。');
     if (offlineCheck.missingImages) warnings.push(`断网检查发现 HTML 正文有 ${offlineCheck.missingImages} 张图片未显示。`);
     if (offlineCheck.remoteImages || offlineCheck.remoteStylesheets) warnings.push('离线 HTML 仍有远程图片或样式引用。');
@@ -294,6 +305,7 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
       title: article.title, account: article.accountName, author: article.author, published_at: article.publishTime,
       site: site.platform, site_name: site.label, article_kind: site.kind, extraction: article.extraction,
       original_url: job.url, resolved_url: article.sourceUrl, saved_at: savedAt.toISOString(), timezone: 'Asia/Shanghai',
+      link_state: migrations.length ? 'migrated' : 'available', migrations,
       source: job.source || 'manual', browser: browser.version(), platform: process.platform,
       file_names: fileNames, files: fileInfo, screenshots: screenshotFiles, screenshot_scale: captureScale,
       screenshot_profiles: screenshotProfiles, image_files: imageFiles,
@@ -307,6 +319,9 @@ export async function archiveArticle(job, config, onStage = () => {}, testOption
     try { await stat(finalDirectory); finalDirectory += '_' + Date.now(); } catch { /* 新目录 */ }
     await rename(stageDirectory, finalDirectory); stageDirectory = null;
     return { title: article.title, outputDir: finalDirectory, metadata, status: metadata.status };
+  } catch (error) {
+    if (linkDetails) error.details = { ...linkDetails, ...error.details };
+    throw error;
   } finally {
     clearTimeout(maxTime);
     await browser.close().catch(() => {});

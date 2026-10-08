@@ -1,4 +1,4 @@
-# wx2md Local v1.2.0.p
+# wx2md Local v1.3.0.p
 
 本目录是可运行的本地工具。完整使用、二次开发和数据说明见 [仓库 README](../README.md)，开发过程见 [DEVELOPMENT_LOG.md](../DEVELOPMENT_LOG.md)。
 

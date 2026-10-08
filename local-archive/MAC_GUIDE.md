@@ -1,6 +1,6 @@
 # Mac 环境安装与软件启动
 
-适用版本：v1.2.0.p；特性分支：`feat/multi-site-archive`。日期：2026-10-08。
+适用版本：v1.3.0.p；特性分支：`feat/link-health-batch-parallel`。日期：2026-10-08。
 
 支持 Apple Silicon（M 系列）和 Intel 64 位 Mac。系统至少 macOS 14 Sonoma，使用 Node.js 22.13+，建议安装 **Node.js 24 LTS**。这是当前 Playwright 的系统要求与本工具 SQLite 的运行要求。[Playwright 官方要求](https://playwright.dev/docs/intro#system-requirements)、[Node.js 下载](https://nodejs.org/en/download)。
 
@@ -21,7 +21,7 @@ npm --version
 
 ## 2. 获取并解压工具
 
-下载本次源码 ZIP，或在 [GitHub 特性分支](https://github.com/Er1ckPang/wechat-to-markdown/tree/feat/multi-site-archive) 点击 **Code → Download ZIP**。解压到你的个人目录，例如“文稿”中，找到其中的 `local-archive/` 文件夹。
+下载本次源码 ZIP，或在 [GitHub 特性分支](https://github.com/Er1ckPang/wechat-to-markdown/tree/feat/link-health-batch-parallel) 点击 **Code → Download ZIP**。解压到你的个人目录，例如“文稿”中，找到其中的 `local-archive/` 文件夹。
 
 不要把 Windows 的 `node_modules/` 复制到 Mac。安装入口会为当前 Mac 下载正确的依赖和浏览器。软件源码 ZIP 已排除文章、凭据和运行数据。
 

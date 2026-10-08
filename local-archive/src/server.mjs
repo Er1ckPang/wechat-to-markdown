@@ -10,6 +10,7 @@ import { Worker } from './worker.mjs';
 import { FeishuReceiver } from './feishu.mjs';
 import { extractArticleUrls } from './urls.mjs';
 import { screenshotViewer } from './html.mjs';
+import { validateBatch, concurrency, DEFAULT_CONCURRENCY, MAX_BATCH_SIZE } from './limits.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const packageInfo = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
@@ -17,7 +18,7 @@ const version = packageInfo.releaseVersion || packageInfo.version;
 const dataDir = path.join(root, 'data');
 const configFile = path.join(dataDir, 'config.json');
 await mkdir(dataDir, { recursive: true });
-const defaults = { archiveDir: path.join(root, 'archives'), screenshotScale: 3, browser: 'auto', showBrowser: false,
+const defaults = { archiveDir: path.join(root, 'archives'), screenshotScale: 3, browser: 'auto', showBrowser: false, concurrency: DEFAULT_CONCURRENCY,
   feishu: { enabled: false, appId: '', appSecret: '', allowedSenders: [] } };
 let config;
 try { const raw = JSON.parse(await readFile(configFile, 'utf8')); config = { ...defaults, ...raw, feishu: { ...defaults.feishu, ...raw.feishu } }; }
@@ -38,7 +39,7 @@ function authorized(req) {
 }
 async function body(req) {
   const chunks = []; let size = 0;
-  for await (const chunk of req) { size += chunk.length; if (size > 64000) throw new Error('提交内容过长。'); chunks.push(chunk); }
+  for await (const chunk of req) { size += chunk.length; if (size > 1024 * 1024) throw new Error('提交内容超过 1 MB，请缩短消息或拆分提交。'); chunks.push(chunk); }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch { throw new Error('提交格式无效。'); }
 }
 function openFolder(directory) {
@@ -67,19 +68,19 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && pathname === '/health') return json(res, 200, { app: 'wx2md-local', version, root });
     if (req.method === 'GET' && pathname === '/api/session') return json(res, 200, { token });
     if (pathname.startsWith('/api/') && !authorized(req)) return json(res, 403, { error: '页面连接已过期，请刷新。' });
-    if (req.method === 'GET' && pathname === '/api/status') return json(res, 200, { version, root, config: publicConfig(), feishu: receiver.status(), jobs: store.list(), busy: worker.busy, archiveDir: config.archiveDir });
+    if (req.method === 'GET' && pathname === '/api/status') return json(res, 200, { version, root, config: publicConfig(), feishu: receiver.status(), jobs: store.list(), stats: store.stats(), worker: worker.status(), maxBatchSize: MAX_BATCH_SIZE, busy: worker.busy, archiveDir: config.archiveDir });
     if (req.method === 'POST' && pathname === '/api/jobs') {
       const input = await body(req);
       const urls = extractArticleUrls(input.text || input.url || '');
       if (!urls.length) throw new Error('没有找到可保存的文章链接。支持公众号、知乎专栏或回答、CSDN、博客园和普通文章网页。');
-      if (urls.length > 20) throw new Error('每次最多提交 20 个链接。');
-      const results = urls.map(url => store.enqueue(url, 'manual', '', !!input.force));
+      validateBatch(urls);
+      const results = store.enqueueBatch(urls, !!input.force);
       worker.kick(); return json(res, 202, { results });
     }
     if (req.method === 'POST' && pathname === '/api/simulate-message') {
       const input = await body(req); const urls = extractArticleUrls(input.text || '');
       if (!urls.length) throw new Error('测试消息需要包含可保存的文章链接。');
-      if (urls.length > 20) throw new Error('每次最多提交 20 个链接。');
+      validateBatch(urls);
       const result = store.enqueueMessage('simulation:' + randomUUID(), urls, 'message-test');
       worker.kick(); return json(res, 202, result);
     }
@@ -89,6 +90,7 @@ const server = http.createServer(async (req, res) => {
       if (typeof input.archiveDir === 'string' && input.archiveDir.trim()) next.archiveDir = path.resolve(input.archiveDir.trim());
       if (input.screenshotScale !== undefined) { const scale = Number(input.screenshotScale); if (![1, 2, 3, 4].includes(scale)) throw new Error('请选择 1 至 4 倍截图清晰度。'); next.screenshotScale = scale; }
       if (input.showBrowser !== undefined) next.showBrowser = !!input.showBrowser;
+      if (input.concurrency !== undefined) next.concurrency = concurrency(input.concurrency);
       if (input.feishu) {
         next.feishu.enabled = !!input.feishu.enabled;
         next.feishu.appId = String(input.feishu.appId || '').trim();
@@ -102,6 +104,7 @@ const server = http.createServer(async (req, res) => {
       await rename(configFile + '.tmp', configFile);
       const feishuChanged = JSON.stringify(config.feishu) !== JSON.stringify(next.feishu);
       config = next;
+      worker.kick();
       if (feishuChanged) receiver.start();
       return json(res, 200, { config: publicConfig(), feishu: receiver.status() });
     }

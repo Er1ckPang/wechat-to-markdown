@@ -1,5 +1,6 @@
 import * as lark from '@larksuiteoapi/node-sdk';
 import { extractArticleUrls } from './urls.mjs';
+import { MAX_BATCH_SIZE } from './limits.mjs';
 
 export function parseFeishuMessage(event, allowedSenders = []) {
   const message = event?.message;
@@ -59,7 +60,11 @@ export class FeishuReceiver {
         this.lastEvent = { at: new Date().toISOString(), senderId: parsed.senderId || '', result: parsed.ignored || (parsed.urls.length ? `收到 ${parsed.urls.length} 个文章链接` : '消息没有可保存的文章链接') };
         if (parsed.ignored) return;
         // Commit to the durable queue before ACK; never wait for browser capture here.
-        this.store.enqueueMessage(parsed.messageId, parsed.urls, 'feishu');
+        if (parsed.urls.length > MAX_BATCH_SIZE) {
+          this.lastEvent.result = `消息含 ${parsed.urls.length} 个不同链接，超过单次 ${MAX_BATCH_SIZE} 篇上限，未入队；请拆分发送。`; return;
+        }
+        try { this.store.enqueueMessage(parsed.messageId, parsed.urls, 'feishu'); }
+        catch (error) { this.lastEvent.result = '消息入队失败：' + redact(error); return; }
         this.kick();
       }
     });

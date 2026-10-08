@@ -6,7 +6,7 @@ export async function prepareCapture(page, scale, warnings, options = {}) {
   await page.addStyleTag({ content: 'html,body{scroll-behavior:auto!important;scroll-snap-type:none!important}*{animation:none!important;transition:none!important;caret-color:transparent!important;scroll-snap-align:none!important;content-visibility:visible!important}::-webkit-scrollbar{display:none!important}' });
   return page.evaluate(async ({ scale, options }) => {
     const content = document.querySelector('[data-wx2md-body], #js_content');
-    let hiddenFloating = 0, flattenedSticky = 0, expandedOverflow = 0, fittedTables = 0;
+    let hiddenFloating = 0, flattenedSticky = 0, expandedOverflow = 0, fittedTables = 0, fittedVectors = 0, reflowedCode = 0;
     for (const element of [...document.querySelectorAll('body *')]) {
       const position = getComputedStyle(element).position;
       if (!['fixed','sticky'].includes(position)) continue;
@@ -20,6 +20,26 @@ export async function prepareCapture(page, scale, warnings, options = {}) {
       style.textContent = '#js_content img{max-width:100%!important}#js_content pre{white-space:pre-wrap!important;overflow-wrap:anywhere!important;max-width:100%!important}#js_content [data-wx2md-fit-table]{table-layout:fixed!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}#js_content [data-wx2md-fit-table] :is(th,td){width:auto!important;min-width:0!important;max-width:none!important;white-space:normal!important;overflow-wrap:anywhere!important;word-break:normal!important;box-sizing:border-box!important}#js_content [data-wx2md-fit-table] :is(section,p,div,span){min-width:0!important;max-width:100%!important;white-space:normal!important;overflow-wrap:anywhere!important}';
       document.head.append(style);
       style.textContent = style.textContent.replaceAll('#js_content', ':is(#js_content,[data-wx2md-body])');
+      // Code spans may override a <pre>'s whitespace; inherit the reading reflow
+      // throughout the code subtree without changing the saved MD or HTML.
+      const scope = ':is(#js_content,[data-wx2md-body])';
+      reflowedCode = [...content.querySelectorAll('pre')].filter(pre => pre.scrollWidth > pre.clientWidth + 1).length;
+      style.textContent += `${scope} pre,${scope} pre *{white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:normal!important;max-width:100%!important;min-width:0!important} ${scope} pre{box-sizing:border-box!important}`;
+      // A number of WeChat math SVGs have max-width:300%!important. Rescale the
+      // vector viewport and its height together; do not crop formula glyphs.
+      for (const vector of content.querySelectorAll('svg')) {
+        if (vector.ownerSVGElement) continue;
+        const rect = vector.getBoundingClientRect();
+        const available = Math.min(content.clientWidth, vector.parentElement.clientWidth || content.clientWidth);
+        if (rect.width > available && rect.width > 0) {
+          const viewBox = vector.viewBox?.baseVal;
+          const ratio = viewBox?.width > 0 && viewBox?.height > 0 ? viewBox.width / viewBox.height : rect.width / rect.height;
+          vector.style.setProperty('width', `${available}px`, 'important');
+          vector.style.setProperty('height', `${available / ratio}px`, 'important');
+          vector.style.setProperty('max-width', '100%', 'important');
+          vector.style.setProperty('min-width', '0', 'important'); fittedVectors++;
+        }
+      }
       // Reflow wide tables at the chosen reading width. Do not extend the canvas
       // beyond the article column, or blank space would follow every paragraph.
       for (const table of content.querySelectorAll('table')) {
@@ -50,9 +70,20 @@ export async function prepareCapture(page, scale, warnings, options = {}) {
     scrollTo(0, 0);
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const bounds = () => ({ width: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, innerWidth), height: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, innerHeight) });
-    const first = bounds(); await new Promise(resolve => setTimeout(resolve, 120)); const second = bounds();
-    if (first.width !== second.width || first.height !== second.height) throw new Error('文章排版仍在变化，无法可靠拼接，请重新保存。');
-    if (options.fitToViewport && second.width > innerWidth) throw new Error('正文仍有超出阅读宽度的内容，无法生成完整的对应比例长图。请查看内嵌 HTML。');
+    let previous = bounds(), second = previous, stable = 0, stabilizationSamples = 0;
+    // Fonts, decoded media and changed code wrapping can settle on later frames.
+    // Require three consecutive stable samples, bounded to 2.4 seconds.
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 120)); second = bounds(); stabilizationSamples++;
+      stable = previous.width === second.width && previous.height === second.height ? stable + 1 : 0;
+      previous = second;
+      if (stable >= 3) break;
+    }
+    if (stable < 3) throw new Error('文章排版仍在变化，无法可靠拼接，请重新保存。');
+    if (options.fitToViewport && second.width > innerWidth + 1) {
+      const overflowing = [...content.querySelectorAll('*')].filter(e => !e.ownerSVGElement && e.getBoundingClientRect().right > innerWidth + 1).slice(0, 3).map(e => e.tagName.toLowerCase()).join('、');
+      throw new Error(`正文仍有超出阅读宽度的内容${overflowing ? `（${overflowing}）` : ''}，无法生成完整长图。请查看内嵌 HTML 并反馈此链接。`);
+    }
     let crop = { left: 0, width: second.width };
     if (options.cropToArticle) {
       const wrapper = content.closest('[data-wx2md-article]') || content.closest('.rich_media_area_primary_inner') || content.closest('main');
@@ -62,7 +93,7 @@ export async function prepareCapture(page, scale, warnings, options = {}) {
       const right = Math.min(second.width, Math.ceil(Math.max(...rects.map(r => r.right)) + 20));
       crop = { left, width: right - left };
     }
-    return { ...second, crop, viewportWidth: innerWidth, viewportHeight: innerHeight, hiddenFloating, flattenedSticky, expandedOverflow, fittedTables };
+    return { ...second, crop, viewportWidth: innerWidth, viewportHeight: innerHeight, hiddenFloating, flattenedSticky, expandedOverflow, fittedTables, fittedVectors, reflowedCode, stabilizationSamples };
   }, { scale, options });
 }
 

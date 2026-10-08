@@ -1,8 +1,8 @@
-# WeChat to Markdown — Windows / Mac 多网站本地归档版 v1.2.0.p
+# WeChat to Markdown — Windows / Mac 多网站本地归档版 v1.3.0.p
 
-当前版本基于 v1.1.0.p 增加知乎专栏／回答、CSDN、博客园与普通文章网页的自动保存，手动和飞书消息共用适配器。归档格式沿用此前版本：MD＋本地原图、内嵌 HTML、手机与电脑两张无损长图，以及 metadata。Windows 与 Mac 安装、检查、后台启动与停止入口继续可用。
+当前版本基于 v1.2.0.p 增加失效文章识别、公众号迁移跟随、单次 100 篇持久入队和可调并发保存，并修复宽公式／代码导致的长图失败。手动和飞书消息共用保存流程。格式保持 MD＋本地原图、内嵌 HTML、手机与电脑两张无损长图，以及 metadata。Windows 与 Mac 安装、检查、后台启动与停止入口继续可用。
 
-特性分支：`feat/multi-site-archive`，基于 `feat/macos-support` 的 v1.1.0.p / `8331642`。历史基线 tag：`v1.0.0.p`。当前软件版本：`v1.2.0.p`，日期：2026-10-08。
+特性分支：`feat/link-health-batch-parallel`，基于 `feat/multi-site-archive` 的 v1.2.0.p / `245eb10713701b765a4625b971b3b2d468ec967b`。历史基线 tag：`v1.0.0.p`。当前软件版本：`v1.3.0.p`，日期：2026-10-08。
 
 本仓库同时保留上游 Community v0.3.0 扩展源码，以及独立的 [local-archive/ 本地工具](local-archive/)。
 原扩展介绍保存在 [docs/upstream-README.md](docs/upstream-README.md)；本地工具与商店产品不是同一安装包。
@@ -21,6 +21,12 @@
 粘贴公众号、知乎专栏或具体回答、CSDN、博客园及其他普通文章网页链接，在当前电脑保存可编辑 Markdown、内嵌图片 HTML、手机和电脑两张无损长图，以及元信息。支持混合多个站点，飞书官方长连接接收发给机器人的单聊文字／富文本链接后使用同一保存流程。
 
 知乎问题列表须改为具体回答链接。普通网页依靠语义正文识别，首页、列表、登录页与交互应用不保证可保存。HTTP 403 或访问限制显示需要人工确认；不会冒充保存完成。范围见 [多网站指南](local-archive/SITES_GUIDE.md)。
+
+每次可提交最多 **100 个不同链接**，重复链接先去重。手动、消息模拟、飞书共用上限；超过上限整批拒绝，网页说明拆分方式。任务先写入 SQLite，重启继续；并非同时打开 100 个浏览器。
+
+“保存设置”可选择并发 **1–4 篇，默认 2 篇**。同一网站最多 2 篇，每次新采集间隔至少约 800 毫秒；长图管线同时只生成一篇，其他文章可继续采集、下载图片和保存 MD／HTML。访问频率限制暂停该网站的新任务约 60 秒，其他网站继续；已被限流的文章仍需稍后点“重新保存”。调低并发时已开始的任务完成，新任务使用新设置。
+
+微信明确的删除／过期／下架提示及 HTTP 404／410 显示“链接已失效”和网页提醒；验证、HTTP 403／429 不被误判为永久失效。迁移页只跟随微信提供的“访问文章”链接，最多 5 次，拒绝循环、非法或站外目标。记录原始链接、新链接和迁移链。若新链接需要验证，仍保留新链接并提示人工确认。
 
 ```text
 local-archive/archives/
@@ -48,7 +54,7 @@ local-archive/archives/
 
 安装 Node.js 22.13+（推荐 24 LTS）和 Edge 或 Chrome，进入 `local-archive/`，双击 **启动工具.cmd**。首次需安装依赖，浏览器地址为 <http://127.0.0.1:17880/>。
 
-本机整理后入口为 `outputs/wx2md-local-v1.2.0.p/local-archive/启动工具.cmd`。关闭网页不会停止后台；停止按钮位于“保存设置”。页面底部和 `/health` 显示实际运行版本与目录。
+本机整理后入口为 `outputs/wx2md-local-v1.3.0.p/local-archive/启动工具.cmd`。关闭网页不会停止后台；停止按钮位于“保存设置”。页面底部和 `/health` 显示实际运行版本与目录。
 
 源码安装与开发：
 
@@ -93,6 +99,7 @@ bash start-mac.command
 | `local-archive/src/screenshot.mjs` | 排版、视口采集、实际滚动坐标、重叠校验、栏外裁剪 |
 | `local-archive/src/png-stream.mjs` | PNG 像素行流式无损编码 |
 | `local-archive/src/store.mjs` / `worker.mjs` | SQLite 队列、消息与文章去重、失败状态和重启恢复 |
+| `local-archive/src/link-state.mjs` / `limits.mjs` | 失效与迁移识别、导航稳定等待、批量上限与长图资源锁 |
 | `local-archive/src/feishu.mjs` | 官方 SDK 长连接与发送人／消息类型过滤 |
 | `local-archive/src/server.mjs` | 127.0.0.1 服务、令牌、配置和归档文件白名单 |
 | `local-archive/public/` | 中文操作页面与指南 |
@@ -102,7 +109,7 @@ bash start-mac.command
 
 ## 版本、数据和历史档案
 
-当前界面版本使用 `1.2.0.p`；npm 要求合法 SemVer，所以 `local-archive/package.json` 的 `version` 是 `1.2.0-p`，`releaseVersion` 是 `1.2.0.p`。原基线 tag `v1.0.0.p` 保留当时的源码。健康接口、启动器和新归档的元信息读取显示版本。
+当前界面版本使用 `1.3.0.p`；npm 要求合法 SemVer，所以 `local-archive/package.json` 的 `version` 是 `1.3.0-p`，`releaseVersion` 是 `1.3.0.p`。原基线 tag `v1.0.0.p` 保留当时的源码。健康接口、启动器和新归档的元信息读取显示版本。
 
 本机只保留这一套可编辑工作目录。旧开发目录、原始研究和测试产物在工作区 `history/` 中以 ZIP 保留；旧版源码 ZIP 也在其中。文章与最新配置、任务库迁入当前 `local-archive/`，任务中的旧路径已修正。旧文章的生成版本和内容不会伪造为新版本。
 
@@ -116,6 +123,8 @@ Windows 手动归档已实测；新增 Mac 安装、启动与原生自动测试�
 
 仓库根目录的上游测试共 45 项通过，扩展构建通过。`vitest.config.ts` 限定上游测试目录，避免把本地工具的 Node.js 测试误当成 Vitest 测试。此前迁移复核了 8 条任务、9 个文章目录、238 个文件，以及 8 份 MD 和 171 个图片引用；原基线清单见 [development/release-manifest.json](development/release-manifest.json)。
 
-本次新增多站点浏览器归档、混合链接、DNS、公网边界、指定回答与列表／验证页／付费提示拒绝测试。本地共 19 项回归；博客园和 MDN 中文文档真实在线保存通过，知乎和 CSDN 在当前网络返回 403，已验证其人工确认提示，但未将其称为真实在线归档通过。原生跨平台结果记录在 [本次版本清单](development/releases/v1.2.0.p.json)。
+本次本地共 **26 项回归**，包含 100 篇队列的恰好一次处理、101 篇整批拒绝、并发上限、失败隔离、限流、迁移和失效分类、真实浏览器双篇并发及宽 SVG／嵌套代码修复。测试文章均自行编写，100 篇调度验证不等于 100 篇真实网站成功保存。
+
+用户提供的 Attention 示例真实保存通过，14 张图断网显示，两种长图完整覆盖。迁移示例已找到微信提供的新链接，但该链接在当前网络进入微信验证页，因此不能宣称无需验证保存成功。v1.2.0.p 已完成博客园和 MDN 实测，知乎／CSDN 当时返回 403。原生跨平台结果见 [本次版本清单](development/releases/v1.3.0.p.json)，故障分析和恢复记录在本机 `local-archive/logs/failure-analysis/`。
 
 Markdown 保留内容结构，字体、颜色和间距以 HTML 为准。复杂表格和公式需要阅读器支持 HTML 与数学语法。视频、音频和互动组件仅保存静态可见内容；访问验证可能需要人工处理。

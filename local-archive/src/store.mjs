@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { articleUrl, articleKey } from './urls.mjs';
+import { validateBatch } from './limits.mjs';
 
 export class Store {
   constructor(filename) {
@@ -35,6 +36,7 @@ export class Store {
   }
 
   enqueueMessage(messageId, urls, source) {
+    validateBatch(urls);
     if (!messageId) throw new Error('消息缺少唯一 ID。');
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -49,7 +51,15 @@ export class Store {
 
   decode(row) { return row ? { ...row, metadata: row.metadata ? JSON.parse(row.metadata) : null } : null; }
   get(id) { return this.decode(this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id)); }
-  list(limit = 100) { return this.db.prepare('SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?').all(limit).map(row => this.decode(row)); }
+  enqueueBatch(urls, force = false) {
+    validateBatch(urls); this.db.exec('BEGIN IMMEDIATE');
+    try { const results = urls.map(url => this.enqueue(url, 'manual', '', force)); this.db.exec('COMMIT'); return results; }
+    catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
+  list(limit = 300) { return this.db.prepare('SELECT * FROM jobs ORDER BY created_at DESC, rowid DESC LIMIT ?').all(limit).map(row => this.decode(row)); }
+  stats() { return Object.fromEntries(this.db.prepare('SELECT status, COUNT(*) AS count FROM jobs GROUP BY status').all().map(row => [row.status, row.count])); }
+  pending() { return this.db.prepare("SELECT * FROM jobs WHERE status='pending' ORDER BY created_at, rowid").all().map(row => this.decode(row)); }
+  claim(id) { return this.decode(this.db.prepare("UPDATE jobs SET status='processing', stage='准备保存', attempts=attempts+1, updated_at=? WHERE id=? AND status='pending' RETURNING *").get(new Date().toISOString(), id)); }
   next() { return this.decode(this.db.prepare("SELECT * FROM jobs WHERE status='pending' ORDER BY created_at LIMIT 1").get()); }
   update(id, fields) {
     const allowed = ['status', 'stage', 'attempts', 'title', 'output_dir', 'metadata', 'error'];
@@ -63,7 +73,7 @@ export class Store {
     const job = this.get(id);
     if (!job) throw new Error('任务不存在。');
     if (['pending', 'processing'].includes(job.status)) throw new Error('这个任务正在等待或保存中。');
-    return this.update(id, { status: 'pending', stage: '准备重新保存', error: null });
+    return this.update(id, { status: 'pending', stage: '准备重新保存', error: null, ...(job.status === 'invalid' ? { metadata: null } : {}) });
   }
   close() { this.db.close(); }
 }
