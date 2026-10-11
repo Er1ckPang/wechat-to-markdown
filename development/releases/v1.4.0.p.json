@@ -31,11 +31,35 @@
     "historicalJobCount": 112,
     "status": "passed",
     "service": "1.4.0.p at localhost:17880; Feishu connected; replyResults enabled; historical receipts not created",
-    "ui": "390/768/1100px Feishu settings and receipt guide: no overflow or script errors; unauthorized retry403"
+    "ui": "390/768/1100px Feishu settings and receipt guide: no overflow or script errors; unauthorized retry403",
+    "oldFolderRemoval": "blocked by automatic approval review; previous checkout retained inactive, source and private runtime ZIPs verified"
   },
   "nativeValidation": {
-    "status": "pending",
-    "testsPerPlatform": 45
+    "status": "passed",
+    "testsPerPlatform": 45,
+    "codeCommit": "4f60912763870a5a68de104c35846e03647cb6c8",
+    "runId": 38147133426,
+    "url": "https://github.com/Er1ckPang/wechat-to-markdown/actions/runs/38147133426",
+    "jobs": [
+      {
+        "id": 114492744361,
+        "name": "windows-latest",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 114492744473,
+        "name": "macos-15",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 114492744557,
+        "name": "macos-15-intel",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
   },
   "privateRecords": "local-archive/data/, local-archive/logs/ and local workspace history ZIPs; excluded from Git and source ZIP"
 }
