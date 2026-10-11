@@ -1,8 +1,8 @@
-# WeChat to Markdown — Windows / Mac 多网站本地归档版 v1.3.0.p
+# WeChat to Markdown — Windows / Mac 多网站本地归档版 v1.4.0.p
 
-当前版本基于 v1.2.0.p 增加失效文章识别、公众号迁移跟随、单次 100 篇持久入队和可调并发保存，新增独立保存记录页（分类筛选、分页查询最多10000条），修复宽公式／代码和动图导致的长图失败。手动和飞书消息共用保存流程。格式保持 MD＋本地原图、内嵌 HTML、手机与电脑两张无损长图，以及 metadata。Windows 与 Mac 安装、检查、后台启动与停止入口继续可用。
+当前版本基于 v1.3.0.p 新增飞书真实保存结果回执：保存结束后核验实际文件，回复原消息，区分完整保存、部分保存、失效、人工确认、失败和文件核验未通过。多链接逐篇汇总，发送失败独立重试，重启继续未送达分段。沿用最多100篇、可调并发、迁移识别、普通浏览器导入和独立记录页。格式保持 MD＋本地原图、内嵌 HTML、手机与电脑两张无损长图，以及 metadata；Windows 与 Mac 入口继续可用。
 
-特性分支：`feat/link-health-batch-parallel`，基于 `feat/multi-site-archive` 的 v1.2.0.p / `245eb10713701b765a4625b971b3b2d468ec967b`。历史基线 tag：`v1.0.0.p`。当前软件版本：`v1.3.0.p`，日期：2026-10-08。
+特性分支：`feat/feishu-save-receipts`，基于 `feat/link-health-batch-parallel` 的 v1.3.0.p / `564a6f94c646f3c1557c1db7c6969827d8caf86a`。历史基线 tag：`v1.0.0.p`。当前软件版本：`v1.4.0.p`，日期：2026-10-11。
 
 本仓库同时保留上游 Community v0.3.0 扩展源码，以及独立的 [local-archive/ 本地工具](local-archive/)。
 原扩展介绍保存在 [docs/upstream-README.md](docs/upstream-README.md)；本地工具与商店产品不是同一安装包。
@@ -11,6 +11,7 @@
 
 - [完整开发记录](DEVELOPMENT_LOG.md)：需求演进、源码归属、版本变化、截图问题与修复、验证证据、开发入口和可见会话记录。
 - [图文使用指南](local-archive/public/guide.html)：手动保存、文件说明、飞书接入、版本切换和 Mac 启动。
+- [飞书结果回执指南](local-archive/FEISHU_RECEIPTS_GUIDE.md)：发送权限、真实结果判定、批量回执、重启补发和排障。
 - [SingleFile 保存与导入指南](local-archive/SINGLEFILE_GUIDE.md)：扩展安装、HTML 格式、延迟图片、字体和断网检查；已有 MHTML 导入可直接重试。
 - [Mac 安装与启动指南](local-archive/MAC_GUIDE.md)：Node 安装、首次安装、四个启动文件、诊断、迁移文章与排障。
 - [多网站保存指南](local-archive/SITES_GUIDE.md)：支持链接、消息触发、目录、排版、访问限制、验证范围与新增适配器。
@@ -65,7 +66,7 @@ local-archive/archives/
 
 安装 Node.js 22.13+（推荐 24 LTS）和 Edge 或 Chrome，进入 `local-archive/`，双击 **启动工具.cmd**。首次需安装依赖，浏览器地址为 <http://127.0.0.1:17880/>。
 
-本机整理后入口为 `outputs/wx2md-local-v1.3.0.p/local-archive/启动工具.cmd`。关闭网页不会停止后台；停止按钮位于“保存设置”。页面底部和 `/health` 显示实际运行版本与目录。
+本机整理后入口为 `outputs/wx2md-local-v1.4.0.p/local-archive/启动工具.cmd`。关闭网页不会停止后台；停止按钮位于“保存设置”。页面底部和 `/health` 显示实际运行版本与目录。
 
 源码安装与开发：
 
@@ -94,9 +95,11 @@ bash start-mac.command
 
 ## 飞书接入
 
-创建企业自建应用并启用机器人；在本地页面填写 App ID / App Secret，订阅长连接事件 `im.message.receive_v1`，申请 `im:message.p2p_msg:readonly`，发布并把可用范围设为自己。给这个机器人单聊发送上述任一站点的文章链接即可。
+创建企业自建应用并启用机器人；在本地页面填写 App ID / App Secret，订阅长连接事件 `im.message.receive_v1`，申请 `im:message.p2p_msg:readonly` 和 **`im:message:send_as_bot`**，发布并把可用范围设为自己。已有应用新增发消息权限后须发布新版本。给机器人单聊发送文章链接，保存结束后回复原消息，包含每篇结果、原因、输出和本地目录；多篇较长时分段。
 
-本机已有连接配置已迁移；没有把凭据写入 Git。模拟消息和过滤逻辑通过测试，实际消息投递需使用自己的应用验收。当前未实现微信个人聊天监听、开机自动启动或家庭服务器部署。
+“保存结束后回复真实结果”默认开启。回执前核验实际文件大小与 SHA-256、双长图完整性和 HTML 正文。缺图明确提示；重复文章复用已有归档也重新核验。回执与入队在同一事务建立，持久保存分段进度、固定 UUID、独立失败重试；发送失败不影响归档状态。升级前的历史消息不补建回执。本机已有配置和保存记录迁入，凭据不进入 Git；真实账号投递需发送链接验收。详见 [回执指南](local-archive/FEISHU_RECEIPTS_GUIDE.md)。
+
+回执里的文件目录和 `127.0.0.1` 记录链接只能在运行工具的电脑使用。本功能不上传文章附件，未实现微信个人聊天监听、开机自动启动或家庭服务器部署。
 
 ## 二次开发入口
 
@@ -113,6 +116,7 @@ bash start-mac.command
 | `local-archive/src/record-query.mjs` / `public/records.*` / `public/job-ui.js` | 完整数据库筛选、10000条分页上限、独立记录页与共用记录卡片 |
 | `local-archive/src/link-state.mjs` / `limits.mjs` | 失效与迁移识别、导航稳定等待、批量上限与长图资源锁 |
 | `local-archive/src/feishu.mjs` | 官方 SDK 长连接与发送人／消息类型过滤 |
+| `local-archive/src/receipt-store.mjs` / `feishu-receipts.mjs` | 消息订阅、文件核验、批量回执、持久发送进度与重试 |
 | `local-archive/src/server.mjs` | 127.0.0.1 服务、令牌、配置和归档文件白名单 |
 | `local-archive/public/` | 中文操作页面与指南 |
 | `development/scripts/` | 历史研究、诊断、验证、迁移和打包脚本的参考副本 |
@@ -121,7 +125,7 @@ bash start-mac.command
 
 ## 版本、数据和历史档案
 
-当前界面版本使用 `1.3.0.p`；npm 要求合法 SemVer，所以 `local-archive/package.json` 的 `version` 是 `1.3.0-p`，`releaseVersion` 是 `1.3.0.p`。原基线 tag `v1.0.0.p` 保留当时的源码。健康接口、启动器和新归档的元信息读取显示版本。
+当前界面版本使用 `1.4.0.p`；npm 要求合法 SemVer，所以 `local-archive/package.json` 的 `version` 是 `1.4.0-p`，`releaseVersion` 是 `1.4.0.p`。原基线 tag `v1.0.0.p` 保留当时的源码。健康接口、启动器和新归档的元信息读取显示版本。
 
 本机只保留这一套可编辑工作目录。旧开发目录、原始研究和测试产物在工作区 `history/` 中以 ZIP 保留；旧版源码 ZIP 也在其中。文章与最新配置、任务库迁入当前 `local-archive/`，任务中的旧路径已修正。旧文章的生成版本和内容不会伪造为新版本。
 
@@ -135,8 +139,8 @@ Windows 手动归档已实测；新增 Mac 安装、启动与原生自动测试�
 
 仓库根目录的上游测试共 45 项通过，扩展构建通过。`vitest.config.ts` 限定上游测试目录，避免把本地工具的 Node.js 测试误当成 Vitest 测试。此前迁移复核了 8 条任务、9 个文章目录、238 个文件，以及 8 份 MD 和 171 个图片引用；原基线清单见 [development/release-manifest.json](development/release-manifest.json)。
 
-本次本地共 **30 项回归**，包含 100 篇队列的恰好一次处理、101 篇整批拒绝、并发上限、失败隔离、限流、迁移和失效分类、真实浏览器双篇并发及宽 SVG／嵌套代码修复；另覆盖GIF／WebP／APNG首帧拼接、10005条分页和完整筛选、记录页实际浏览器操作。测试文章均自行编写，100 篇调度验证不等于 100 篇真实网站成功保存。
+本次 Windows 完整 **45 项本地回归**通过，包含原有35项和新增10项飞书回执测试。新增覆盖官方 SDK 回复请求契约、真实浏览器导入到后台归档再回执、成功与部分／失败混合结果、文件删除及同大小篡改、重复消息、共享任务、100篇分段、权限失败、重启补发和允许名单。飞书测试使用模拟接口，没有给真实账号发送测试消息。测试文章均自行编写，100篇调度验证不等于100篇真实网站成功保存。最终原生跨平台结果见版本清单。
 
-用户提供的 Attention 示例真实保存通过，14 张图断网显示，两种长图完整覆盖。新增推理优化示例已修复3张GIF导致的接缝失败，28张图断网显示，手机1296×64710、电脑2154×52617，接缝差异均为0。迁移示例已找到微信提供的新链接，但该链接在当前网络进入微信验证页，因此不能宣称无需验证保存成功。v1.2.0.p 已完成博客园和 MDN 实测，知乎／CSDN 当时返回 403。原生跨平台结果见 [本次版本清单](development/releases/v1.3.0.p.json)，故障分析和恢复记录在本机 `local-archive/logs/failure-analysis/`。
+用户提供的 Attention 示例真实保存通过，14 张图断网显示，两种长图完整覆盖。新增推理优化示例已修复3张GIF导致的接缝失败，28张图断网显示，手机1296×64710、电脑2154×52617，接缝差异均为0。迁移示例已找到微信提供的新链接，但该链接在当前网络进入微信验证页，因此不能宣称无需验证保存成功。v1.2.0.p 已完成博客园和 MDN 实测，知乎／CSDN 当时返回 403。原生跨平台结果见 [本次版本清单](development/releases/v1.4.0.p.json)，故障分析和恢复记录在本机 `local-archive/logs/failure-analysis/`。
 
 Markdown 保留内容结构，字体、颜色和间距以 HTML 为准。复杂表格和公式需要阅读器支持 HTML 与数学语法。视频、音频和互动组件仅保存静态可见内容；访问验证可能需要人工处理。

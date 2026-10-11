@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { articleUrl, articleKey } from './urls.mjs';
 import { validateBatch } from './limits.mjs';
 import { queryRecords, compactJob } from './record-query.mjs';
+import { ReceiptStore } from './receipt-store.mjs';
 
 export class Store {
   constructor(filename) {
@@ -22,6 +23,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS jobs_status_created ON jobs(status,created_at);
       CREATE TABLE IF NOT EXISTS received_messages (id TEXT PRIMARY KEY, received_at TEXT NOT NULL);
     `);
+    this.receipts = new ReceiptStore(this);
     this.db.prepare("UPDATE jobs SET status='pending', stage='重新启动后继续保存', updated_at=? WHERE status='processing'").run(new Date().toISOString());
   }
 
@@ -38,7 +40,7 @@ export class Store {
     return { job: this.get(id), duplicate: false };
   }
 
-  enqueueMessage(messageId, urls, source) {
+  enqueueMessage(messageId, urls, source, receipt = null) {
     validateBatch(urls);
     if (!messageId) throw new Error('消息缺少唯一 ID。');
     this.db.exec('BEGIN IMMEDIATE');
@@ -47,8 +49,9 @@ export class Store {
         this.db.exec('COMMIT'); return { duplicate: true, jobs: [] };
       }
       const jobs = urls.map(url => this.enqueue(url, source, messageId));
+      const receiptId = receipt ? this.receipts.attach(messageId,receipt,jobs) : null;
       this.db.prepare('INSERT INTO received_messages VALUES(?,?)').run(messageId, new Date().toISOString());
-      this.db.exec('COMMIT'); return { duplicate: false, jobs };
+      this.db.exec('COMMIT'); return { duplicate: false, jobs, ...(receiptId ? {receiptId} : {}) };
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
 

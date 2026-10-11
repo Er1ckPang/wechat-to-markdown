@@ -3,9 +3,10 @@ import { concurrency, CaptureSlot } from './limits.mjs';
 import { recordFailure, friendlyError } from './diagnostics.mjs';
 
 export class Worker {
-  constructor(store, getConfig, { archive = archiveArticle, now = Date.now, startGap = 800, logFailure = recordFailure } = {}) {
+  constructor(store, getConfig, { archive = archiveArticle, now = Date.now, startGap = 800, logFailure = recordFailure, onSettled = () => {} } = {}) {
     this.store = store; this.getConfig = getConfig; this.archive = archive; this.now = now; this.startGap = startGap;
     this.logFailure = logFailure;
+    this.onSettled = onSettled;
     this.active = new Map(); this.hostReady = new Map(); this.captureSlot = new CaptureSlot();
     this.stopped = false; this.timer = null; this.wakeTimer = null; this.scheduled = false;
   }
@@ -52,7 +53,7 @@ export class Worker {
       this.store.update(job.id, { status: invalid ? 'invalid' : error instanceof NeedsManualError ? 'needs_manual' : 'failed',
         stage: invalid ? '文章链接已失效' : '保存未完成', error: friendlyError(error),
         metadata: { ...(job.metadata?.browser_import ? {browser_import:job.metadata.browser_import,browser_import_url:job.metadata.browser_import_url,migrations:job.metadata.migrations} : {}),...error.details, failure_stage: failedStage, link_state: invalid ? 'invalid' : error.details?.link_state || 'unknown' } });
-    } finally { this.active.delete(job.id); this.kick(); }
+    } finally { this.active.delete(job.id); this.kick();try {this.onSettled();}catch { /* Receipt delivery cannot fail archive jobs. */ } }
   }
   stop() { this.stopped = true; clearInterval(this.timer); clearTimeout(this.wakeTimer); }
 }

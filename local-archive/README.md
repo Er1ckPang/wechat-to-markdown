@@ -1,4 +1,4 @@
-# wx2md Local v1.3.0.p
+# wx2md Local v1.4.0.p
 
 本目录是可运行的本地工具。完整使用、二次开发和数据说明见 [仓库 README](../README.md)，开发过程见 [DEVELOPMENT_LOG.md](../DEVELOPMENT_LOG.md)。
 
@@ -13,3 +13,5 @@ MD 图片位于同级 `images/`；HTML 图片内嵌，手机和电脑长图各�
 采集浏览器微信验证超时时，在日常浏览器正常打开文章、滚动加载图片后保存 MHTML，或用 SingleFile 保存内嵌 HTML。首页展开“从普通浏览器导入”，填写实际链接并选择单文件（最多64 MB），后台断网生成同样输出。失败记录的入口可继续原任务；迁移文章填新链接。详见[导入指南](public/guide.html#browser-import)。导入副本位于私有 `data/browser-imports/`，普通完整网页的资源文件夹不支持直接导入。
 
 SingleFile 的安装、HTML 格式、延迟加载、原图尺寸、字体保存和断网检查见 [SingleFile 专项指南](SINGLEFILE_GUIDE.md) / [图文页面](public/singlefile-guide.html)。MHTML 图片地址带 `#imgIndex`、延迟图片和内置 CSS 已正确处理；已有导入任务点击“重新保存”即可使用保存的源文件重试，真实缺资源继续提示。
+
+飞书单聊链接保存结束后回复原消息，核验实际文件后区分完整、部分、失效、需人工、失败和本地文件核验未通过。多链接逐篇汇总，回执失败独立重试，重启继续。需在飞书开通 `im:message:send_as_bot` 并发布应用新版本；设置及排障见 [回执指南](FEISHU_RECEIPTS_GUIDE.md) / [图文页面](public/feishu-receipts-guide.html)。

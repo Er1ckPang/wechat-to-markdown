@@ -1,0 +1,41 @@
+{
+  "release": "v1.4.0.p",
+  "date": "2026-10-11",
+  "branch": "feat/feishu-save-receipts",
+  "baseBranch": "feat/link-health-batch-parallel",
+  "baseRelease": "v1.3.0.p",
+  "baseCommit": "564a6f94c646f3c1557c1db7c6969827d8caf86a",
+  "displayVersion": "1.4.0.p",
+  "npmVersion": "1.4.0-p",
+  "features": [
+    "Feishu original-message result replies",
+    "actual archive byte and manifest verification",
+    "per-message durable subscriptions and multipart outbox",
+    "independent delivery retry and restart recovery",
+    "reply settings, permission guidance and manual resend"
+  ],
+  "localValidation": {
+    "singleFileBuild": "passed",
+    "upstreamBuild": "passed",
+    "newReceiptTests": 10,
+    "localTestsPassed": 45,
+    "guideBuild": "passed",
+    "upstreamTestsPassed": 45,
+    "realFeishuAccountDelivery": "not tested; requires app send permission and user acceptance"
+  },
+  "liveValidation": {
+    "archiveBytes": 4467598713,
+    "allArchiveHashesEqual": true,
+    "archiveFiles": 2397,
+    "historicalReceiptsCreated": 0,
+    "historicalJobCount": 112,
+    "status": "passed",
+    "service": "1.4.0.p at localhost:17880; Feishu connected; replyResults enabled; historical receipts not created",
+    "ui": "390/768/1100px Feishu settings and receipt guide: no overflow or script errors; unauthorized retry403"
+  },
+  "nativeValidation": {
+    "status": "pending",
+    "testsPerPlatform": 45
+  },
+  "privateRecords": "local-archive/data/, local-archive/logs/ and local workspace history ZIPs; excluded from Git and source ZIP"
+}

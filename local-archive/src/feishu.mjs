@@ -21,12 +21,13 @@ export function parseFeishuMessage(event, allowedSenders = []) {
     for (const [key, child] of Object.entries(value)) if (!['text', 'href'].includes(key)) walk(child, depth + 1);
   };
   walk(content);
-  return { messageId: 'feishu:' + message.message_id, senderId: openId, urls: extractArticleUrls(pieces.join('\n')) };
+  return { messageId: 'feishu:' + message.message_id, replyMessageId: message.message_id, senderId: openId, urls: extractArticleUrls(pieces.join('\n')) };
 }
 
 export class FeishuReceiver {
-  constructor(store, kick, getConfig) {
+  constructor(store, kick, getConfig, { onQueued = () => {} } = {}) {
     this.store = store; this.kick = kick; this.getConfig = getConfig;
+    this.onQueued = onQueued;
     this.client = null; this.state = 'disabled'; this.error = ''; this.lastEvent = null;
   }
   status() {
@@ -35,6 +36,22 @@ export class FeishuReceiver {
   stop() {
     if (this.client) this.client.close({ force: true });
     this.client = null; this.state = 'disabled'; this.error = '';
+  }
+  receive(event) {
+    const config=this.getConfig().feishu;
+    const parsed=parseFeishuMessage(event,config.allowedSenders);
+    this.lastEvent={at:new Date().toISOString(),senderId:parsed.senderId || '',result:parsed.ignored || (parsed.urls.length ? `收到 ${parsed.urls.length} 个文章链接` : '消息没有可保存的文章链接')};
+    if (parsed.ignored) return;
+    const receipt=config.replyResults!==false ? {appId:config.appId,replyMessageId:parsed.replyMessageId,senderId:parsed.senderId} : null;
+    const rejection=parsed.urls.length>MAX_BATCH_SIZE ? `消息含 ${parsed.urls.length} 个不同链接，超过单次 ${MAX_BATCH_SIZE} 篇上限，未入队；请拆分发送。` : !parsed.urls.length ? '没有找到可保存的文章链接。请发送公众号、知乎专栏或具体回答、CSDN、博客园等单篇文章链接。' : '';
+    try {
+      // Only durable inserts happen before the event ACK. Capture and replies
+      // run separately; duplicate deliveries cannot add another subscription.
+      let result;
+      if (rejection) {this.lastEvent.result=rejection;result=receipt ? this.store.receipts.reject(parsed.messageId,receipt,rejection) : {ignored:rejection};}
+      else result=this.store.enqueueMessage(parsed.messageId,parsed.urls,'feishu',receipt);
+      this.kick();this.onQueued();return result;
+    } catch(error) {this.lastEvent.result='消息入队失败：'+String(error.message).replaceAll(config.appSecret,'[已隐藏]').slice(0,500);}
   }
   start() {
     this.stop();
@@ -55,18 +72,7 @@ export class FeishuReceiver {
     });
     this.client = client;
     const dispatcher = new lark.EventDispatcher({ logger }).register({
-      'im.message.receive_v1': event => {
-        const parsed = parseFeishuMessage(event, this.getConfig().feishu.allowedSenders);
-        this.lastEvent = { at: new Date().toISOString(), senderId: parsed.senderId || '', result: parsed.ignored || (parsed.urls.length ? `收到 ${parsed.urls.length} 个文章链接` : '消息没有可保存的文章链接') };
-        if (parsed.ignored) return;
-        // Commit to the durable queue before ACK; never wait for browser capture here.
-        if (parsed.urls.length > MAX_BATCH_SIZE) {
-          this.lastEvent.result = `消息含 ${parsed.urls.length} 个不同链接，超过单次 ${MAX_BATCH_SIZE} 篇上限，未入队；请拆分发送。`; return;
-        }
-        try { this.store.enqueueMessage(parsed.messageId, parsed.urls, 'feishu'); }
-        catch (error) { this.lastEvent.result = '消息入队失败：' + redact(error); return; }
-        this.kick();
-      }
+      'im.message.receive_v1': event => {if(this.client===client)this.receive(event);}
     });
     client.start({ eventDispatcher: dispatcher }).catch(error => {
       if (this.client === client) { this.error = redact(error); this.state = 'failed'; }

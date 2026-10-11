@@ -1,0 +1,71 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>飞书真实保存结果回执指南 · wx2md Local</title><style>
+:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f4ef;color:#243429;font:15px/1.85 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}main{max-width:940px;margin:auto;padding:35px 30px 70px}a{color:#276448}h1{font-size:30px;line-height:1.4}h2{margin-top:35px;font-size:22px}code{background:#e8eee4;border-radius:4px;padding:2px 5px;overflow-wrap:anywhere}pre{background:#223a2b;color:#eaf2e8;border-radius:8px;padding:18px;overflow:auto}pre code{background:none;overflow-wrap:normal;padding:0}table{width:100%;border-collapse:collapse;background:#fff}td,th{border:1px solid #dce3d9;text-align:left;padding:10px}th{background:#e9eee5}li{margin:9px 0}nav{display:flex;gap:20px;border-bottom:1px solid #dce3d9;padding-bottom:15px}@media(max-width:600px){main{padding:24px 18px}h1{font-size:25px}table{font-size:13px}}
+</style><style>a{overflow-wrap:anywhere}table{table-layout:fixed;overflow-wrap:anywhere}nav{flex-wrap:wrap}@media(max-width:600px){td,th{padding:8px 6px}}</style></head><body><main><nav><a href="guide.html">完整使用指南</a><a href="mac-guide.html">Mac 安装</a><a href="sites-guide.html">支持的网站</a><a href="feishu-receipts-guide.html">飞书结果回执</a><a href="http://127.0.0.1:17880/">打开本地工具</a></nav><h1>飞书真实保存结果回执指南</h1>
+<p>适用版本：<strong>v1.4.0.p</strong>，基于 v1.3.0.p；特性分支 <code>feat/feishu-save-receipts</code>。</p>
+<h2>开启方式</h2>
+<ol>
+<li>在 <a href="https://open.feishu.cn/app">飞书开发者后台</a> 打开已有自建应用，确认已启用机器人能力。</li>
+<li>在“权限管理”申请应用权限 <code>im:message.p2p_msg:readonly</code>（读取用户发给机器人的单聊消息）及 <strong><code>im:message:send_as_bot</code>（以应用的身份发消息）</strong>。</li>
+<li>在“版本管理与发布”创建并发布新版本，按工作区要求完成管理员审批。已发布应用新增权限后仍须发布新版本。</li>
+<li>在本地工具“飞书自动保存”中勾选“启用飞书自动保存”和“保存结束后回复真实结果”，保存并应用。现有凭据无需重新填写；Secret 留空保留原值。</li>
+<li>保持电脑开机、联网和工具运行，给该机器人<strong>单聊</strong>发送公众号、知乎专栏／具体回答、CSDN、博客园或普通文章链接。文本和富文本可一次包含最多100个不同链接。</li>
+</ol>
+<p>只接收授权用户发给机器人的单聊消息；文章卡片、图片和合并转发请改发复制出的链接。允许发送人设置继续生效。不补发升级前历史消息的回执。</p>
+<h2>什么时候返回，返回什么</h2>
+<p>消息先持久入队。单篇处理结束后回复原消息；一条消息含多篇时，等待该消息的全部任务结束后逐篇汇总。多篇结果较长时分段发送，标明部分编号。</p>
+<table>
+<thead>
+<tr>
+<th>回执结果</th>
+<th>实际含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>保存完成</td>
+<td>核对本地 MD、内嵌 HTML、手机和电脑 PNG、metadata 及已保存原图；文件大小、SHA-256、双长图完整性和 HTML 正文检查通过，未记录缺资源提示</td>
+</tr>
+<tr>
+<td>已生成文件 · 有提示</td>
+<td>已有输出，但存在缺图、资源未保存或其他提示；回执列出提示，不承诺完整离线</td>
+</tr>
+<tr>
+<td>链接已失效</td>
+<td>网站明确删除、过期或下架，或返回404／410</td>
+</tr>
+<tr>
+<td>需要人工确认</td>
+<td>验证码、登录或访问限制等；列出原因，迁移文章提供新链接</td>
+</tr>
+<tr>
+<td>保存失败</td>
+<td>采集、排版、截图或落盘等失败；列出真实原因</td>
+</tr>
+<tr>
+<td>本地文件核验未通过</td>
+<td>旧归档缺少可核验清单，或文件已移动、删除、改动、截图完整性未确认；不会回复“保存完成”</td>
+</tr>
+<tr>
+<td>文章未入队</td>
+<td>未找到支持的文章链接，或去重后超过100个链接；说明原因</td>
+</tr>
+</tbody></table>
+<p>回执包含核验时间、各类数量、每篇标题和链接、输出格式、原图数量及本地目录。微信链接中的临时 token 会隐藏。重复文章复用已有任务／归档，但仍为这条新消息回复，并重新核对现有文件；重复投递的同一个消息事件不再生成回执。</p>
+<p><strong>文件仍保存在运行工具的电脑</strong>，本功能不上传文章附件到飞书。回执中的 <code>127.0.0.1</code> 记录地址需在这台电脑打开，手机无法通过这个地址访问电脑文件。Markdown 移动时应带上 <code>images/</code>。</p>
+<p>回执说明核验时的结果。用户随后手动删除／修改文件，或在本地对同一任务重新保存，不会修改已发送回执，也不会主动再发一次；需更新回执时，给机器人再次发送文章链接。</p>
+<h2>收到文章但没有回执</h2>
+<p>打开本地工具的“飞书自动保存”，查看“等待保存”“待发送”“已发送”和回执错误。</p>
+<ul>
+<li><strong>等待保存</strong>：仍有任务未结束。长文章和批量长图需要时间，可在保存记录页查看进度。</li>
+<li><strong>缺少权限</strong>：申请 <code>im:message:send_as_bot</code> 并发布应用新版本。保存文件已经落盘时无需重新抓取；点“重试未送达回执”即可。</li>
+<li><strong>网络或限流</strong>：回执独立重试，首次约5秒，随后递增，最多间隔5分钟。发送失败不会把成功归档改成失败。</li>
+<li><strong>开关关闭</strong>：重新启用后继续发送已有待发送回执。关闭期间的新消息仍可保存，但不建立回执。</li>
+<li><strong>允许名单变化</strong>：已不在名单内的发送人暂停回执；恢复权限后重试。更换 App ID 后，旧应用的待发送回执不会由新应用发送。</li>
+<li><strong>原消息删除、应用范围或机器人权限变化</strong>：按本地错误核查飞书应用和原会话。永久性失败也会保留待发送状态供排障。</li>
+</ul>
+<p>回执及分段发送进度写入同一个本地 SQLite 数据库。重启继续未送达部分，已成功记录的分段不会再发；每段使用固定 UUID 和内容，降低接口重试重复消息的概率。平台幂等窗口和外部网络存在限制，不保证任意长时间故障下绝对只投递一次。</p>
+<p>收到的消息与任务先通过同一事务写入，再返回事件处理。电脑离线时尚未收到的消息能否补投取决于飞书，不保证全部恢复；重要链接可恢复连接后再次发送。同一应用只运行一份消费者。</p>
+<p>“先测试本地消息处理”仅测试提取和队列，不会给飞书发消息。自动测试使用自行编写的文章和模拟飞书接口，覆盖官方 SDK 请求契约、真实浏览器归档、100篇分段、文件损坏、权限失败和重启补发；真实账号投递仍需发送一条链接验收。</p>
+<h2>二次开发</h2>
+<p><code>feishu.mjs</code> 接收消息；<code>store.mjs</code> 和 <code>receipt-store.mjs</code> 在入队事务中建立消息到任务的订阅；<code>worker.mjs</code> 通知任务结束；<code>feishu-receipts.mjs</code> 核验文件、冻结结果、生成分段并调用官方回复接口。回执数据库不进入 Git 或源码包。</p>
+<p>官方参考：<a href="https://open.feishu.cn/document/server-docs/im-v1/message/reply">回复消息 API</a>、<a href="https://open.feishu.cn/document/server-docs/im-v1/message/events/receive">接收消息事件</a>、<a href="https://github.com/larksuite/node-sdk">飞书 Node SDK</a>。</p>
+</main></body></html>

@@ -22,6 +22,10 @@ async function refresh() {
     $('service-text').textContent = latest.busy ? `后台正在保存 ${latest.worker.active} 篇文章` : '本地工具运行中';
     $('feishu-summary').textContent = feishuNames[latest.feishu.state] || latest.feishu.state;
     $('feishu-state').textContent = feishuNames[latest.feishu.state] || latest.feishu.state;
+      const receipt = latest.feishu.receipts;
+      $('receipt-detail').className = 'connection-detail' + (receipt?.lastError ? ' error' : '');
+      $('receipt-detail').textContent = receipt ? `${receipt.enabled ? '保存结果回执已开启' : '保存结果回执已关闭'} · ${receipt.waiting} 条等待保存结束 · ${receipt.pending + receipt.sending} 条待送达 · ${receipt.sent} 条已送达${receipt.lastError ? '。' + receipt.lastError : ''}` : '';
+      $('retry-receipts').disabled = !receipt?.enabled || !(receipt.pending || receipt.sending);
     const pending = latest.stats.pending || 0;
     $('queue-note').textContent = `${pending} 篇等待 · 并发 ${latest.worker.active}/${latest.worker.concurrency}` + (latest.worker.pausedHosts.length ? ' · 网站限流，等待恢复' : '');
     const invalidCount = latest.stats.invalid || 0;
@@ -34,6 +38,7 @@ async function refresh() {
       $('archive-dir').value = latest.config.archiveDir; $('screenshot-scale').value = latest.config.screenshotScale || 3; $('show-browser').checked = latest.config.showBrowser;
       $('concurrency').value = latest.config.concurrency;
       $('app-id').value = latest.config.feishu.appId; $('feishu-enabled').checked = latest.config.feishu.enabled; $('allowed-senders').value = latest.config.feishu.allowedSenders.join(', ');
+      $('reply-results').checked = latest.config.feishu.replyResults !== false;
       initialized = true;
     }
     renderJobs(latest.jobs);
@@ -65,10 +70,11 @@ $('import-form').onsubmit = event => { event.preventDefault(); submit(event.subm
 }); };
 $('settings-form').onsubmit = event => { event.preventDefault(); submit(event.submitter, async () => { await api('/api/config', { archiveDir: $('archive-dir').value, screenshotScale: Number($('screenshot-scale').value), concurrency: Number($('concurrency').value), showBrowser: $('show-browser').checked }); toast('保存设置已更新。'); }); };
 $('feishu-form').onsubmit = event => { event.preventDefault(); submit(event.submitter, async () => {
-  await api('/api/config', { feishu: { appId: $('app-id').value, appSecret: $('app-secret').value, allowedSenders: $('allowed-senders').value, enabled: $('feishu-enabled').checked } });
+    await api('/api/config', { feishu: { appId: $('app-id').value, appSecret: $('app-secret').value, allowedSenders: $('allowed-senders').value, enabled: $('feishu-enabled').checked, replyResults: $('reply-results').checked } });
   $('app-secret').value = ''; toast('飞书设置已保存，请查看连接状态。');
 }); };
 $('reconnect').onclick = () => submit($('reconnect'), async () => { await api('/api/feishu/reconnect', {}); toast('正在重新连接飞书。'); });
+  $('retry-receipts').onclick = () => submit($('retry-receipts'), async () => { await api('/api/feishu/receipts/retry', {}); toast('未送达的保存结果将重新发送。'); });
 $('simulate').onclick = () => submit($('simulate'), async () => { const result = await api('/api/simulate-message', { text: $('message-test').value }); toast(`消息提取成功：${result.jobs.length} 个链接已处理，已保存文章会自动去重。`); });
 $('open-root').onclick = () => submit($('open-root'), () => api('/api/open-archive', {}));
 $('stop').onclick = () => submit($('stop'), async () => { await api('/api/stop', {}); toast('本地工具已停止；双击启动文件可再次运行。'); });

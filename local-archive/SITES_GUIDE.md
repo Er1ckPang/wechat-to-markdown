@@ -1,6 +1,6 @@
 # 多网站文章保存指南
 
-适用版本：**v1.3.0.p**；特性分支：`feat/link-health-batch-parallel`。基于 v1.2.0.p（提交 `245eb10713701b765a4625b971b3b2d468ec967b`）开发。
+适用版本：**v1.4.0.p**；特性分支：`feat/feishu-save-receipts`。基于 v1.3.0.p（提交 `564a6f94c646f3c1557c1db7c6969827d8caf86a`）开发。飞书发来混合站点链接后，保存结束会回复每篇真实结果，开通发消息权限与排障见 [回执指南](public/feishu-receipts-guide.html)。
 
 ## 支持范围
 

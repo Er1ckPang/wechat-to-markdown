@@ -12,6 +12,7 @@ import { extractArticleUrls } from './urls.mjs';
 import { screenshotViewer } from './html.mjs';
 import { validateBatch, concurrency, DEFAULT_CONCURRENCY, MAX_BATCH_SIZE } from './limits.mjs';
 import { receiveImport, removeImport } from './browser-import.mjs';
+import { FeishuReceipts } from './feishu-receipts.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const packageInfo = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
@@ -20,15 +21,17 @@ const dataDir = path.join(root, 'data');
 const configFile = path.join(dataDir, 'config.json');
 await mkdir(dataDir, { recursive: true });
 const defaults = { archiveDir: path.join(root, 'archives'), screenshotScale: 3, browser: 'auto', showBrowser: false, concurrency: DEFAULT_CONCURRENCY,
-  feishu: { enabled: false, appId: '', appSecret: '', allowedSenders: [] } };
+  feishu: { enabled: false, appId: '', appSecret: '', allowedSenders: [], replyResults: true } };
 let config;
 try { const raw = JSON.parse(await readFile(configFile, 'utf8')); config = { ...defaults, ...raw, feishu: { ...defaults.feishu, ...raw.feishu } }; }
 catch (error) { if (error.code !== 'ENOENT') throw new Error('本地设置文件损坏，请保留备份后修复 data/config.json。'); config = structuredClone(defaults); }
 const store = new Store(path.join(dataDir, 'jobs.sqlite'));
-const worker = new Worker(store, () => config);
-const receiver = new FeishuReceiver(store, () => worker.kick(), () => config);
 const port = Number(process.env.WX2MD_PORT || 17880);
 const origin = `http://127.0.0.1:${port}`;
+const receipts = new FeishuReceipts(store, () => config, {recordsUrl:origin+'/records.html'});
+const worker = new Worker(store, () => config, {onSettled:()=>receipts.kick()});
+const receiver = new FeishuReceiver(store, () => worker.kick(), () => config, {onQueued:()=>receipts.kick()});
+function feishuStatus() { return {...receiver.status(),receipts:receipts.status()}; }
 const token = randomBytes(32).toString('hex');
 await writeFile(path.join(dataDir, 'api-token.txt'), token, { mode: 0o600 });
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.avif': 'image/avif', '.bmp': 'image/bmp' };
@@ -69,7 +72,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && pathname === '/health') return json(res, 200, { app: 'wx2md-local', version, root });
     if (req.method === 'GET' && pathname === '/api/session') return json(res, 200, { token });
     if (pathname.startsWith('/api/') && !authorized(req)) return json(res, 403, { error: '页面连接已过期，请刷新。' });
-    if (req.method === 'GET' && pathname === '/api/status') return json(res, 200, { version, root, config: publicConfig(), feishu: receiver.status(), jobs: store.active(), stats: store.stats(), worker: worker.status(), maxBatchSize: MAX_BATCH_SIZE, busy: worker.busy, archiveDir: config.archiveDir });
+    if (req.method === 'GET' && pathname === '/api/status') return json(res, 200, { version, root, config: publicConfig(), feishu: feishuStatus(), jobs: store.active(), stats: store.stats(), worker: worker.status(), maxBatchSize: MAX_BATCH_SIZE, busy: worker.busy, archiveDir: config.archiveDir });
     if (req.method === 'GET' && pathname === '/api/jobs') return json(res, 200, store.records(Object.fromEntries(url.searchParams)));
     const jobDetail = /^\/api\/jobs\/([a-f0-9-]+)$/.exec(pathname);
     if (req.method === 'GET' && jobDetail) {
@@ -107,6 +110,7 @@ const server = http.createServer(async (req, res) => {
       if (input.concurrency !== undefined) next.concurrency = concurrency(input.concurrency);
       if (input.feishu) {
         next.feishu.enabled = !!input.feishu.enabled;
+        if (input.feishu.replyResults !== undefined) next.feishu.replyResults = !!input.feishu.replyResults;
         next.feishu.appId = String(input.feishu.appId || '').trim();
         if (input.feishu.clearSecret) next.feishu.appSecret = '';
         else if (input.feishu.appSecret) next.feishu.appSecret = String(input.feishu.appSecret).trim();
@@ -119,10 +123,11 @@ const server = http.createServer(async (req, res) => {
       const feishuChanged = JSON.stringify(config.feishu) !== JSON.stringify(next.feishu);
       config = next;
       worker.kick();
-      if (feishuChanged) receiver.start();
-      return json(res, 200, { config: publicConfig(), feishu: receiver.status() });
+      if (feishuChanged) {receiver.start();receipts.retry();}
+      return json(res, 200, { config: publicConfig(), feishu: feishuStatus() });
     }
-    if (req.method === 'POST' && pathname === '/api/feishu/reconnect') { receiver.start(); return json(res, 200, receiver.status()); }
+    if (req.method === 'POST' && pathname === '/api/feishu/reconnect') { receiver.start();receipts.retry();return json(res, 200, feishuStatus()); }
+    if (req.method === 'POST' && pathname === '/api/feishu/receipts/retry') {receipts.retry();return json(res,200,receipts.status());}
     const jobAction = /^\/api\/jobs\/([a-f0-9-]+)\/(retry|verify|folder)$/.exec(pathname);
     if (req.method === 'POST' && jobAction) {
       const job = store.get(jobAction[1]); if (!job) throw new Error('任务不存在。');
@@ -156,7 +161,7 @@ const server = http.createServer(async (req, res) => {
       if (!namedOutput && !localImage && !(legacyOutput && /^(?:article\.md|markdown\.html|original(?:-singlefile)?\.html|images\.html|screenshots\.html|original(?:-\d{3})?\.png|metadata\.json|images\/\d+\.(?:png|jpg|webp|gif|svg|avif|bmp))$/.test(relative))) return json(res, 404, { error: '文件不存在。' });
       return await serveFile(res, path.join(job.output_dir, relative), true);
     }
-    if (req.method === 'GET' && ['/', '/app.js', '/records.html', '/records.js', '/job-ui.js', '/style.css', '/guide.html', '/mac-guide.html', '/sites-guide.html', '/singlefile-guide.html'].includes(pathname)) {
+    if (req.method === 'GET' && ['/', '/app.js', '/records.html', '/records.js', '/job-ui.js', '/style.css', '/guide.html', '/mac-guide.html', '/sites-guide.html', '/singlefile-guide.html', '/feishu-receipts-guide.html'].includes(pathname)) {
       return await serveFile(res, path.join(root, 'public', pathname === '/' ? 'index.html' : pathname.slice(1)));
     }
     return json(res, 404, { error: '地址不存在。' });
@@ -169,12 +174,12 @@ let shuttingDown = false;
 function shutdown() {
   if (shuttingDown) return; shuttingDown = true;
   worker.stop(); receiver.stop();
-  server.close(() => { if (!worker.busy) { store.close(); process.exit(0); } });
+  receipts.stop().finally(()=>server.close(() => { if (!worker.busy) { store.close(); process.exit(0); } }));
   setTimeout(() => process.exit(0), 5000).unref();
 }
 server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? '端口已被占用；如果工具已启动，请直接打开本地页面。' : error.message); process.exit(1); });
 server.listen(port, '127.0.0.1', () => {
   console.log(`在线文章本地保存已启动：${origin}`);
-  worker.start(); receiver.start();
+  worker.start(); receiver.start();receipts.start();
 });
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
